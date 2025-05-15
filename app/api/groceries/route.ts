@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '../../generated/prisma';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
-
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status') || 'toBuy';
+  
   try {
     const items = await prisma.groceryItem.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
+      where: { status },
+      orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(items);
   } catch (error) {
@@ -18,9 +18,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name } = await request.json();
+    const json = await request.json();
     const item = await prisma.groceryItem.create({
-      data: { name }
+      data: {
+        name: json.name,
+        status: 'toBuy',
+      },
     });
     return NextResponse.json(item);
   } catch (error) {
@@ -28,11 +31,24 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const json = await request.json();
+    const item = await prisma.groceryItem.update({
+      where: { id: json.id },
+      data: { status: json.status },
+    });
+    return NextResponse.json(item);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to update item' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
-    const { id } = await request.json();
+    const json = await request.json();
     await prisma.groceryItem.delete({
-      where: { id }
+      where: { id: json.id },
     });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -3,7 +3,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../app/generated/prisma"
 }
 
 datasource db {
@@ -14,6 +13,7 @@ datasource db {
 model GroceryItem {
   id        String   @id @default(cuid())
   name      String
+  status    String   @default("toBuy") // can be "toBuy" or "purchased"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

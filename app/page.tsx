@@ -1,120 +1,149 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from 'react';
+import TabNavigation from './components/TabNavigation';
 
 interface GroceryItem {
   id: string;
   name: string;
-  createdAt: string;
-  updatedAt: string;
+  status: 'toBuy' | 'purchased';
 }
 
 export default function Home() {
   const [items, setItems] = useState<GroceryItem[]>([]);
-  const [newItem, setNewItem] = useState("");
+  const [newItem, setNewItem] = useState('');
+  const [activeTab, setActiveTab] = useState<'toBuy' | 'purchased'>('toBuy');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [activeTab]);
 
   const fetchItems = async () => {
     try {
-      const response = await fetch('/api/groceries');
+      const response = await fetch(`/api/groceries?status=${activeTab}`);
       const data = await response.json();
-      setItems(data);
+      if (Array.isArray(data)) {
+        setItems(data);
+      } else {
+        setItems([]); // or handle error as needed
+        console.error('API did not return an array:', data);
+      }
+      setIsLoading(false);
     } catch (error) {
       console.error('Failed to fetch items:', error);
-    } finally {
       setIsLoading(false);
     }
   };
 
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newItem.trim()) {
-      try {
-        const response = await fetch('/api/groceries', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: newItem.trim() }),
-        });
-        const item = await response.json();
-        setItems([item, ...items]);
-        setNewItem("");
-      } catch (error) {
-        console.error('Failed to add item:', error);
+    if (!newItem.trim()) return;
+
+    try {
+      const response = await fetch('/api/groceries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newItem }),
+      });
+      if (response.ok) {
+        setNewItem('');
+        fetchItems();
       }
+    } catch (error) {
+      console.error('Failed to add item:', error);
     }
   };
 
-  const removeItem = async (id: string) => {
+  const updateItemStatus = async (id: string, newStatus: 'toBuy' | 'purchased') => {
+    try {
+      await fetch('/api/groceries', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      fetchItems();
+    } catch (error) {
+      console.error('Failed to update item:', error);
+    }
+  };
+
+  const deleteItem = async (id: string) => {
     try {
       await fetch('/api/groceries', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-      setItems(items.filter(item => item.id !== id));
+      fetchItems();
     } catch (error) {
-      console.error('Failed to remove item:', error);
+      console.error('Failed to delete item:', error);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Grocery List AI</h1>
-        
-        <form onSubmit={addItem} className="mb-6">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
-              placeholder="Add a new item..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none"
-            >
-              Add
-            </button>
-          </div>
+    <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
+      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
+        <h1 className="text-4xl font-bold text-center mb-8 text-blue-800">
+          Grocery List
+        </h1>
+
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+        <form onSubmit={addItem} className="flex gap-2 mb-8">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            placeholder="Add new item..."
+            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Add
+          </button>
         </form>
 
         {isLoading ? (
-          <p className="text-center text-gray-500">Loading...</p>
+          <div className="text-center">Loading...</div>
         ) : (
-          <>
-            <ul className="space-y-2">
-              {items.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-lg"
-                >
-                  <span>{item.name}</span>
+          <ul className="w-full space-y-2">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm"
+              >
+                <span>{item.name}</span>
+                <div className="flex gap-2">
+                  {activeTab === 'toBuy' ? (
+                    <button
+                      onClick={() => updateItemStatus(item.id, 'purchased')}
+                      className="text-green-500 hover:text-green-600"
+                    >
+                      ✓
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => updateItemStatus(item.id, 'toBuy')}
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      ↩
+                    </button>
+                  )}
                   <button
-                    onClick={() => removeItem(item.id)}
-                    className="text-red-500 hover:text-red-600 focus:outline-none"
+                    onClick={() => deleteItem(item.id)}
+                    className="text-red-500 hover:text-red-600"
                   >
-                    Remove
+                    ×
                   </button>
-                </li>
-              ))}
-            </ul>
-            
-            {items.length === 0 && (
-              <p className="text-gray-500 text-center">Your grocery list is empty</p>
-            )}
-          </>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-    </div>
+    </main>
   );
 }
