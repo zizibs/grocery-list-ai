@@ -37,6 +37,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -94,13 +95,17 @@ export default function Home() {
 
   const createList = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newListName.trim() || !user?.id) return;
+    setError(null);
+    if (!newListName.trim() || !user?.id) {
+      setError('Please enter a list name');
+      return;
+    }
 
     try {
       // Generate a unique share code
       const shareCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
-      const { data, error } = await supabase
+      const { data, error: supabaseError } = await supabase
         .from('lists')
         .insert([
           {
@@ -112,18 +117,29 @@ export default function Home() {
         .select()
         .single();
 
-      if (error) {
-        console.error('Error creating list:', error);
-        throw error;
+      if (supabaseError) {
+        console.error('Error creating list:', supabaseError);
+        if (supabaseError.code === '23505') { // unique violation
+          setError('A list with this share code already exists. Please try again.');
+        } else if (supabaseError.code === '42P01') { // undefined table
+          setError('Database setup incomplete. Please contact support.');
+        } else if (supabaseError.code === '42703') { // undefined column
+          setError('Database schema mismatch. Please contact support.');
+        } else {
+          setError('Failed to create list. Please try again.');
+        }
+        return;
       }
 
       if (data) {
         setLists(prevLists => [...prevLists, data]);
         setNewListName('');
         setCurrentList(data.id);
+        setError(null);
       }
     } catch (error) {
       console.error('Error creating list:', error);
+      setError('An unexpected error occurred. Please try again.');
     }
   };
 
@@ -306,6 +322,12 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
+            </div>
+          )}
 
           {currentList && (
             <>
