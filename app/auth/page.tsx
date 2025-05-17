@@ -26,10 +26,10 @@ export default function AuthPage() {
       }
 
       try {
-        // Test the connection
-        const { data, error } = await supabase.from('auth').select('*').limit(1);
+        // Test the connection using a more reliable method
+        const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
-        console.log('Supabase connection successful');
+        console.log('Supabase connection successful', data);
       } catch (err) {
         console.error('Supabase connection test failed:', err);
         setError('Failed to connect to Supabase. Check console for details.');
