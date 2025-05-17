@@ -1,7 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
@@ -36,12 +35,29 @@ export async function middleware(req: NextRequest) {
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data:;
     font-src 'self';
-    frame-src 'self';
+    frame-src 'self' https://*.supabase.co;
     media-src 'self';
   `.replace(/\s+/g, ' ').trim();
 
-  // Set CSP headers
+  // Set security headers
   res.headers.set('Content-Security-Policy', cspHeader);
+
+  // Handle CORS
+  const origin = req.headers.get('origin');
+  if (origin) {
+    res.headers.set('Access-Control-Allow-Origin', origin);
+  }
+  res.headers.set('Access-Control-Allow-Credentials', 'true');
+  res.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.headers.set(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  // Handle OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return new NextResponse(null, { status: 200 });
+  }
   
   return res;
 }
