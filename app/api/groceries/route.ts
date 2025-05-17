@@ -2,12 +2,9 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get('status') || 'toBuy';
-  
   try {
-    // Try to connect to the database
-    await prisma.$connect();
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || 'toBuy';
     
     const items = await prisma.groceryItem.findMany({
       where: { status },
@@ -20,16 +17,11 @@ export async function GET(request: Request) {
       { error: 'Failed to fetch items', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
 export async function POST(request: Request) {
   try {
-    // Try to connect to the database
-    await prisma.$connect();
-    
     const json = await request.json();
     const item = await prisma.groceryItem.create({
       data: {
@@ -44,16 +36,11 @@ export async function POST(request: Request) {
       { error: 'Failed to create item', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    // Try to connect to the database
-    await prisma.$connect();
-    
     const json = await request.json();
     const item = await prisma.groceryItem.update({
       where: { id: json.id },
@@ -66,16 +53,11 @@ export async function PUT(request: Request) {
       { error: 'Failed to update item', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    // Try to connect to the database
-    await prisma.$connect();
-    
     const json = await request.json();
     await prisma.groceryItem.delete({
       where: { id: json.id },
@@ -87,7 +69,5 @@ export async function DELETE(request: Request) {
       { error: 'Failed to delete item', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 } 
