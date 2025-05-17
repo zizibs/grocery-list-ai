@@ -16,12 +16,17 @@ export default function AuthPage() {
   // Check if environment variables are set and test Supabase connection
   useEffect(() => {
     const checkConnection = async () => {
+      // Log the URL (but not the key for security)
+      console.log('Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log('Supabase Key configured:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        setError('Supabase configuration is missing. Please check environment variables.');
-        console.error('Missing env vars:', {
+        const errorMsg = 'Supabase configuration is missing. Please check environment variables.';
+        console.error(errorMsg, {
           url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing',
           key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing'
         });
+        setError(errorMsg);
         return;
       }
 
@@ -29,10 +34,14 @@ export default function AuthPage() {
         // Test the connection using a more reliable method
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
-        console.log('Supabase connection successful', data);
+        console.log('Supabase connection successful', { sessionExists: !!data.session });
       } catch (err) {
-        console.error('Supabase connection test failed:', err);
-        setError('Failed to connect to Supabase. Check console for details.');
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+        console.error('Supabase connection test failed:', {
+          error: errorMsg,
+          timestamp: new Date().toISOString(),
+        });
+        setError(`Failed to connect to Supabase: ${errorMsg}`);
       }
     };
 
@@ -45,16 +54,21 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        console.log('Attempting sign up...');
+        console.log('Attempting sign up for email:', email);
         await signUp(email, password);
         alert('Check your email for the confirmation link!');
       } else {
-        console.log('Attempting sign in...');
+        console.log('Attempting sign in for email:', email);
         await signIn(email, password);
         router.push('/');
       }
     } catch (error) {
-      console.error('Auth error:', error);
+      console.error('Auth error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+        isSignUp,
+      });
+      
       if (error instanceof Error) {
         setError(error.message);
       } else {
