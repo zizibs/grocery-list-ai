@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'toBuy';
     
-    const items = await prisma.groceryItem.findMany({
-      where: { status },
-      orderBy: { createdAt: 'desc' },
-    });
-    return NextResponse.json(items);
+    const { data, error } = await supabase
+      .from('GroceryItem')
+      .select('*')
+      .eq('status', status)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json(
@@ -23,13 +26,19 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const json = await request.json();
-    const item = await prisma.groceryItem.create({
-      data: {
-        name: json.name,
-        status: 'toBuy',
-      },
-    });
-    return NextResponse.json(item);
+    const { data, error } = await supabase
+      .from('GroceryItem')
+      .insert([
+        {
+          name: json.name,
+          status: 'toBuy',
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json(
@@ -42,11 +51,15 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const json = await request.json();
-    const item = await prisma.groceryItem.update({
-      where: { id: json.id },
-      data: { status: json.status },
-    });
-    return NextResponse.json(item);
+    const { data, error } = await supabase
+      .from('GroceryItem')
+      .update({ status: json.status })
+      .eq('id', json.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json(
@@ -59,9 +72,12 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const json = await request.json();
-    await prisma.groceryItem.delete({
-      where: { id: json.id },
-    });
+    const { error } = await supabase
+      .from('GroceryItem')
+      .delete()
+      .eq('id', json.id);
+
+    if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Database error:', error);
