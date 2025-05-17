@@ -1,9 +1,7 @@
-'use client';
-
 import type { Metadata } from "next";
 import { GeistSans, GeistMono } from "geist/font";
 import "./globals.css";
-import Providers from "@/components/Providers";
+import ClientLayout from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
   title: "Grocery List App",
@@ -17,11 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="antialiased">
-        <Providers>
-          {children}
-        </Providers>
-      </body>
+      <ClientLayout>{children}</ClientLayout>
     </html>
   );
 }
