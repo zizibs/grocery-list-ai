@@ -13,18 +13,57 @@ async function getSupabaseServer() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
+          cookieStore.set({
+            name,
+            value,
+            ...options,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+          });
         },
         remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
+          cookieStore.set({
+            name,
+            value: '',
+            ...options,
+            maxAge: -1,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+          });
         },
       },
     }
   );
 }
 
+async function verifyAuth(request: Request) {
+  const supabase = await getSupabaseServer();
+  
+  // First try to get session from cookies
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (session) {
+    return { user: session.user, supabase };
+  }
+
+  // If no session in cookies, check Authorization header
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('No valid authorization found');
+  }
+
+  const token = authHeader.split(' ')[1];
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  
+  if (authError || !user) {
+    throw new Error('Invalid authorization token');
+  }
+
+  return { user, supabase };
+}
+
 export async function GET(request: Request) {
   try {
+    const { user, supabase } = await verifyAuth(request);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'toBuy';
     const list_id = searchParams.get('list_id');
@@ -33,7 +72,6 @@ export async function GET(request: Request) {
       throw new Error('list_id is required');
     }
 
-    const supabase = await getSupabaseServer();
     const { data, error } = await supabase
       .from('grocery_item')
       .select('*')
@@ -45,23 +83,18 @@ export async function GET(request: Request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
+    const status = error instanceof Error && error.message.includes('authorization') ? 401 : 500;
     return NextResponse.json(
-      { error: 'Failed to fetch items', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status }
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const { user, supabase } = await verifyAuth(request);
     const json = await request.json();
-    const supabase = await getSupabaseServer();
-    
-    // Get the user session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     if (!json.list_id) {
       return NextResponse.json({ error: 'list_id is required' }, { status: 400 });
@@ -74,7 +107,7 @@ export async function POST(request: Request) {
           name: json.name,
           status: 'toBuy',
           list_id: json.list_id,
-          created_by: session.user.id
+          created_by: user.id
         }
       ])
       .select()
@@ -84,23 +117,18 @@ export async function POST(request: Request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
+    const status = error instanceof Error && error.message.includes('authorization') ? 401 : 500;
     return NextResponse.json(
-      { error: 'Failed to create item', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status }
     );
   }
 }
 
 export async function PUT(request: Request) {
   try {
+    const { user, supabase } = await verifyAuth(request);
     const json = await request.json();
-    const supabase = await getSupabaseServer();
-    
-    // Get the user session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { data, error } = await supabase
       .from('grocery_item')
@@ -113,23 +141,18 @@ export async function PUT(request: Request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
+    const status = error instanceof Error && error.message.includes('authorization') ? 401 : 500;
     return NextResponse.json(
-      { error: 'Failed to update item', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status }
     );
   }
 }
 
 export async function DELETE(request: Request) {
   try {
+    const { user, supabase } = await verifyAuth(request);
     const json = await request.json();
-    const supabase = await getSupabaseServer();
-    
-    // Get the user session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { error } = await supabase
       .from('grocery_item')
@@ -140,9 +163,10 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Database error:', error);
+    const status = error instanceof Error && error.message.includes('authorization') ? 401 : 500;
     return NextResponse.json(
-      { error: 'Failed to delete item', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status }
     );
   }
 } 

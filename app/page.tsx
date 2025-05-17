@@ -206,10 +206,25 @@ export default function Home() {
     }
 
     try {
+      // Get the session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please sign in to add items');
+        return;
+      }
+
       const response = await fetch('/api/groceries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newItem, list_id: currentList }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ 
+          name: newItem, 
+          list_id: currentList,
+          user_id: session.user.id
+        }),
+        credentials: 'include'
       });
       
       if (!response.ok) {
