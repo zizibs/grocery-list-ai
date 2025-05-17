@@ -27,9 +27,14 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(item);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create item' }, { status: 500 });
+    console.error('POST /api/groceries error:', error);
+    return NextResponse.json(
+      { error: 'Failed to create item', details: String(error) },
+      { status: 500 }
+    );
   }
 }
+
 
 export async function PUT(request: Request) {
   try {
