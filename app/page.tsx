@@ -195,7 +195,15 @@ export default function Home() {
 
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.trim()) return;
+    setError(null);
+    if (!newItem.trim()) {
+      setError('Please enter an item name');
+      return;
+    }
+    if (!currentList) {
+      setError('Please select a list first');
+      return;
+    }
 
     try {
       const response = await fetch('/api/groceries', {
@@ -203,12 +211,18 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newItem, list_id: currentList }),
       });
-      if (response.ok) {
-        setNewItem('');
-        fetchItems();
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add item');
       }
+      
+      setNewItem('');
+      fetchItems();
+      setError(null);
     } catch (error) {
       console.error('Failed to add item:', error);
+      setError(error instanceof Error ? error.message : 'Failed to add item');
     }
   };
 
