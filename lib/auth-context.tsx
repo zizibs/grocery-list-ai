@@ -34,11 +34,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      console.log('Starting sign up process...');
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin + '/auth/callback'
+        }
+      });
+      
+      console.log('Sign up response:', {
+        success: !error,
+        hasData: !!data,
+        errorMessage: error?.message
+      });
+
+      if (error) {
+        console.error('Supabase sign up error:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        });
+        throw error;
+      }
+
+      if (!data.user) {
+        throw new Error('Sign up successful but no user returned');
+      }
+    } catch (error) {
+      console.error('Sign up process error:', {
+        error: error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        } : 'Unknown error type',
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
   };
 
   const signIn = async (email: string, password: string) => {
