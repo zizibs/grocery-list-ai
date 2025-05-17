@@ -58,28 +58,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const testSupabaseConnection = async () => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) {
-      throw new Error('Supabase URL is not configured');
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    console.log('Testing Supabase connection...', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      url: supabaseUrl?.substring(0, 20) + '...' // Log part of the URL safely
+    });
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase configuration:', {
+        url: !supabaseUrl ? 'Missing URL' : 'URL present',
+        key: !supabaseKey ? 'Missing key' : 'Key present'
+      });
+      throw new Error('Supabase configuration is incomplete');
     }
 
     try {
-      // Try to get the Supabase health check endpoint
-      const healthUrl = `${supabaseUrl}/rest/v1/health`;
-      const response = await fetch(healthUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'cors',
+      // First try a direct auth check
+      const { data, error } = await supabase.auth.getSession();
+      console.log('Auth check result:', {
+        success: !error,
+        hasSession: !!data.session,
+        error: error?.message
       });
 
-      if (!response.ok) {
-        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
+      if (error) {
+        console.error('Auth check failed:', error);
+        return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Supabase health check failed:', error);
+      console.error('Connection test failed:', {
+        error: error instanceof Error ? {
+          message: error.message,
+          name: error.name
+        } : 'Unknown error',
+        supabaseUrl: supabaseUrl?.substring(0, 20) + '...' // Log part of the URL safely
+      });
       return false;
     }
   };
@@ -89,7 +106,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const siteUrl = getSiteUrl();
       console.log('Starting sign up process...', { 
         email,
-        redirectTo: `${siteUrl}/auth/callback`
+        redirectTo: `${siteUrl}/auth/callback`,
+        supabaseConfigured: {
+          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          hasSiteUrl: !!process.env.NEXT_PUBLIC_SITE_URL
+        }
       });
       
       // Test connection before attempting sign up
@@ -139,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           stack: error.stack
         } : 'Unknown error type',
         timestamp: new Date().toISOString(),
-        url: process.env.NEXT_PUBLIC_SUPABASE_URL
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20) + '...' // Log part of the URL safely
       });
       
       if (error instanceof Error) {
@@ -149,6 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error('Authentication service is currently unavailable. Please try again later.');
         } else if (error.message.includes('Cannot establish connection')) {
           throw new Error('Cannot connect to authentication service. Please try again later.');
+        } else if (error.message.includes('configuration is incomplete')) {
+          throw new Error('Authentication service is not properly configured. Please contact support.');
         }
       }
       
