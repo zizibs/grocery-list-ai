@@ -15,17 +15,34 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          res.cookies.set({ name, value, ...options });
+          res.cookies.set({
+            name,
+            value,
+            ...options,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+          });
         },
         remove(name: string, options: any) {
-          res.cookies.set({ name, value: '', ...options });
+          res.cookies.set({
+            name,
+            value: '',
+            ...options,
+            maxAge: -1,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+          });
         },
       },
     }
   );
 
-  // Refresh session if expired - required for Server Components
-  await supabase.auth.getSession();
+  // Refresh session if expired
+  const { data: { session }, error } = await supabase.auth.getSession();
+  
+  if (error) {
+    console.error('Session refresh error:', error);
+  }
 
   // Add CSP headers
   const cspHeader = `
@@ -51,7 +68,7 @@ export async function middleware(req: NextRequest) {
   res.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.headers.set(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
 
   // Handle OPTIONS request
