@@ -1,7 +1,27 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+
+async function getSupabaseServer() {
+  const cookieStore = cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+}
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +33,7 @@ export async function GET(request: Request) {
       throw new Error('list_id is required');
     }
 
+    const supabase = await getSupabaseServer();
     const { data, error } = await supabase
       .from('grocery_item')
       .select('*')
@@ -34,28 +55,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const json = await request.json();
-    const cookieStore = cookies();
+    const supabase = await getSupabaseServer();
     
     // Get the user session
-    const supabaseServer = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
-
-    const { data: { session } } = await supabaseServer.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -91,6 +94,14 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const json = await request.json();
+    const supabase = await getSupabaseServer();
+    
+    // Get the user session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data, error } = await supabase
       .from('grocery_item')
       .update({ status: json.status })
@@ -112,6 +123,14 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const json = await request.json();
+    const supabase = await getSupabaseServer();
+    
+    // Get the user session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { error } = await supabase
       .from('grocery_item')
       .delete()
