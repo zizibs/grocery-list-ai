@@ -2,18 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import TabNavigation from './components/TabNavigation';
+import RecipeModal from './components/RecipeModal';
 
-interface GroceryItem {
+interface GroceryItemType {
   id: string;
   name: string;
   status: 'toBuy' | 'purchased';
 }
 
+interface Recipe {
+  title: string;
+  ingredients: string[];
+}
+
 export default function Home() {
-  const [items, setItems] = useState<GroceryItem[]>([]);
+  const [items, setItems] = useState<GroceryItemType[]>([]);
   const [newItem, setNewItem] = useState('');
   const [activeTab, setActiveTab] = useState<'toBuy' | 'purchased'>('toBuy');
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
 
   useEffect(() => {
     fetchItems();
@@ -81,6 +89,27 @@ export default function Home() {
     }
   };
 
+  const findRecipes = async () => {
+    try {
+      const response = await fetch('/api/groceries?status=purchased');
+      const purchasedItems = await response.json();
+      if (Array.isArray(purchasedItems)) {
+        const recipeResponse = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ purchasedItems }),
+        });
+        const { recipes } = await recipeResponse.json();
+        setRecipes(recipes);
+        setIsModalOpen(true);
+      } else {
+        console.error('API did not return an array:', purchasedItems);
+      }
+    } catch (error) {
+      console.error('Failed to fetch purchased items or recipes:', error);
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
@@ -105,6 +134,13 @@ export default function Home() {
             Add
           </button>
         </form>
+
+        <button
+          onClick={findRecipes}
+          className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors mb-8"
+        >
+          Find Recipes
+        </button>
 
         {isLoading ? (
           <div className="text-center">Loading...</div>
@@ -144,6 +180,8 @@ export default function Home() {
           </ul>
         )}
       </div>
+
+      <RecipeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} recipes={recipes} />
     </main>
   );
 }

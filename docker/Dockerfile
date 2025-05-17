@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM node:20-alpine AS builder
@@ -26,6 +26,7 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/app ./app
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/certificates ./certificates
 
@@ -33,4 +34,4 @@ COPY --from=builder /app/certificates ./certificates
 RUN npx prisma generate
 
 # Start the Node.js application
-CMD ["node", "server.js"] 
+CMD ["node", "server.js"]

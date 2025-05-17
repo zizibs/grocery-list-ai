@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status') || 'toBuy';
     
     const { data, error } = await supabase
-      .from('GroceryItem')
+      .from('grocery_item')
       .select('*')
       .eq('status', status)
       .order('created_at', { ascending: false });
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     const { data, error } = await supabase
-      .from('GroceryItem')
+      .from('grocery_item')
       .insert([
         {
           name: json.name,
@@ -52,7 +52,7 @@ export async function PUT(request: Request) {
   try {
     const json = await request.json();
     const { data, error } = await supabase
-      .from('GroceryItem')
+      .from('grocery_item')
       .update({ status: json.status })
       .eq('id', json.id)
       .select()
@@ -73,7 +73,7 @@ export async function DELETE(request: Request) {
   try {
     const json = await request.json();
     const { error } = await supabase
-      .from('GroceryItem')
+      .from('grocery_item')
       .delete()
       .eq('id', json.id);
 

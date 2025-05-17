@@ -40,6 +40,6 @@ echo "To view logs continuously: docker logs -f grocery-list-container"
 echo "To stop: docker stop grocery-list-container"
 
 # Enter the container shell with custom prompt
-echo "Entering Docker container shell..."
+echo "Entering Docker shell..."
 echo "Type 'exit' to return to your local shell"
 docker exec -it grocery-list-container /bin/sh -c 'export PS1="[DOCKER] ziv@container:/app \$ " && /bin/sh' 
