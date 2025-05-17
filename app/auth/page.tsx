@@ -13,11 +13,30 @@ export default function AuthPage() {
   const { signIn, signUp } = useAuth();
   const router = useRouter();
 
-  // Check if environment variables are set
+  // Check if environment variables are set and test Supabase connection
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      setError('Supabase configuration is missing. Please check environment variables.');
-    }
+    const checkConnection = async () => {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        setError('Supabase configuration is missing. Please check environment variables.');
+        console.error('Missing env vars:', {
+          url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing',
+          key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing'
+        });
+        return;
+      }
+
+      try {
+        // Test the connection
+        const { data, error } = await supabase.from('auth').select('*').limit(1);
+        if (error) throw error;
+        console.log('Supabase connection successful');
+      } catch (err) {
+        console.error('Supabase connection test failed:', err);
+        setError('Failed to connect to Supabase. Check console for details.');
+      }
+    };
+
+    checkConnection();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,9 +45,11 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
+        console.log('Attempting sign up...');
         await signUp(email, password);
         alert('Check your email for the confirmation link!');
       } else {
+        console.log('Attempting sign in...');
         await signIn(email, password);
         router.push('/');
       }
@@ -39,6 +60,8 @@ export default function AuthPage() {
       } else {
         setError('An error occurred during authentication. Please try again.');
       }
+      // Log the full error object for debugging
+      console.error('Full error object:', JSON.stringify(error, null, 2));
     }
   };
 
