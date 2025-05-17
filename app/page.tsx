@@ -52,17 +52,40 @@ export default function Home() {
 
   const fetchLists = async () => {
     try {
-      const { data: listsData, error } = await supabase
+      // First get the lists where user is the creator
+      const { data: ownedLists, error: ownedError } = await supabase
         .from('lists')
         .select('*')
-        .or(`created_by.eq.${user?.id},id.in.(${
-          supabase.from('users_lists').select('list_id').eq('user_id', user?.id)
-        })`);
+        .eq('created_by', user?.id);
 
-      if (error) throw error;
-      setLists(listsData || []);
-      if (listsData?.length > 0 && !currentList) {
-        setCurrentList(listsData[0].id);
+      if (ownedError) throw ownedError;
+
+      // Then get the lists shared with the user
+      const { data: sharedListIds, error: sharedError } = await supabase
+        .from('users_lists')
+        .select('list_id')
+        .eq('user_id', user?.id);
+
+      if (sharedError) throw sharedError;
+
+      // If there are shared lists, fetch their details
+      let sharedLists = [];
+      if (sharedListIds && sharedListIds.length > 0) {
+        const { data: sharedListsData, error: listsError } = await supabase
+          .from('lists')
+          .select('*')
+          .in('id', sharedListIds.map(item => item.list_id));
+
+        if (listsError) throw listsError;
+        sharedLists = sharedListsData || [];
+      }
+
+      // Combine both lists
+      const combinedLists = [...(ownedLists || []), ...sharedLists];
+      setLists(combinedLists);
+      
+      if (combinedLists.length > 0 && !currentList) {
+        setCurrentList(combinedLists[0].id);
       }
     } catch (error) {
       console.error('Error fetching lists:', error);
@@ -71,24 +94,34 @@ export default function Home() {
 
   const createList = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newListName.trim()) return;
+    if (!newListName.trim() || !user?.id) return;
 
     try {
+      // Generate a unique share code
+      const shareCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
       const { data, error } = await supabase
         .from('lists')
         .insert([
           {
-            name: newListName,
-            created_by: user?.id,
-          },
+            name: newListName.trim(),
+            created_by: user.id,
+            share_code: shareCode
+          }
         ])
         .select()
         .single();
 
-      if (error) throw error;
-      setLists([...lists, data]);
-      setNewListName('');
-      setCurrentList(data.id);
+      if (error) {
+        console.error('Error creating list:', error);
+        throw error;
+      }
+
+      if (data) {
+        setLists(prevLists => [...prevLists, data]);
+        setNewListName('');
+        setCurrentList(data.id);
+      }
     } catch (error) {
       console.error('Error creating list:', error);
     }
