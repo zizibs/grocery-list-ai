@@ -4,54 +4,56 @@ import prisma from '@/lib/prisma';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'toBuy';
-
+  
   try {
-    console.log('Fetching items with status:', status); // <-- Log search param
-
+    // Try to connect to the database
+    await prisma.$connect();
+    
     const items = await prisma.groceryItem.findMany({
       where: { status },
       orderBy: { createdAt: 'desc' },
     });
-
-    console.log('Fetched items:', items); // <-- Log DB result
     return NextResponse.json(items);
   } catch (error) {
-    console.error('GET /api/groceries error:', error); // <-- Actual error
+    console.error('Database error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch items', details: String(error) },
+      { error: 'Failed to fetch items', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-
 export async function POST(request: Request) {
   try {
+    // Try to connect to the database
+    await prisma.$connect();
+    
     const json = await request.json();
-    console.log('Incoming POST data:', json); // <-- Log input
-
     const item = await prisma.groceryItem.create({
       data: {
         name: json.name,
         status: 'toBuy',
       },
     });
-
-    console.log('Item created:', item); // <-- Log DB result
     return NextResponse.json(item);
   } catch (error) {
-    console.error('POST /api/groceries error:', error); // <-- Actual error
+    console.error('Database error:', error);
     return NextResponse.json(
-      { error: 'Failed to create item', details: String(error) },
+      { error: 'Failed to create item', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-
-
 export async function PUT(request: Request) {
   try {
+    // Try to connect to the database
+    await prisma.$connect();
+    
     const json = await request.json();
     const item = await prisma.groceryItem.update({
       where: { id: json.id },
@@ -59,18 +61,33 @@ export async function PUT(request: Request) {
     });
     return NextResponse.json(item);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update item' }, { status: 500 });
+    console.error('Database error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update item', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
 export async function DELETE(request: Request) {
   try {
+    // Try to connect to the database
+    await prisma.$connect();
+    
     const json = await request.json();
     await prisma.groceryItem.delete({
       where: { id: json.id },
     });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete item' }, { status: 500 });
+    console.error('Database error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete item', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
   }
 } 
