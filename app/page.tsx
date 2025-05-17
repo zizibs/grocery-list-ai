@@ -178,7 +178,20 @@ export default function Home() {
 
   const fetchItems = async () => {
     try {
-      const response = await fetch(`/api/groceries?status=${activeTab}&list_id=${currentList}`);
+      // Get the session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please sign in to view items');
+        return;
+      }
+
+      const response = await fetch(`/api/groceries?status=${activeTab}&list_id=${currentList}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
       const data = await response.json();
       if (Array.isArray(data)) {
         setItems(data);
@@ -243,27 +256,51 @@ export default function Home() {
 
   const updateItemStatus = async (id: string, newStatus: 'toBuy' | 'purchased') => {
     try {
+      // Get the session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please sign in to update items');
+        return;
+      }
+
       await fetch('/api/groceries', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ id, status: newStatus, list_id: currentList }),
+        credentials: 'include'
       });
       fetchItems();
     } catch (error) {
       console.error('Failed to update item:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update item');
     }
   };
 
   const deleteItem = async (id: string) => {
     try {
+      // Get the session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please sign in to delete items');
+        return;
+      }
+
       await fetch('/api/groceries', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ id, list_id: currentList }),
+        credentials: 'include'
       });
       fetchItems();
     } catch (error) {
       console.error('Failed to delete item:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete item');
     }
   };
 

@@ -9,9 +9,52 @@ datasource db {
 }
 
 model grocery_item {
-  id        String   @id @default(cuid())
-  name      String
-  status    String   @default("toBuy")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  status     String   @default("toBuy")
+  list_id    String   @db.Uuid
+  created_by String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  list List @relation(fields: [list_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([list_id])
+  @@index([created_by])
+}
+
+model List {
+  id         String        @id @default(uuid()) @db.Uuid
+  name       String
+  share_code String        @unique
+  created_by String        @db.Uuid
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  items      grocery_item[]
+  users      users_lists[]
+  owner      User          @relation(fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([created_by])
+}
+
+model User {
+  id         String        @id @db.Uuid
+  email      String       @unique
+  lists      List[]
+  shared_lists users_lists[]
+  items      grocery_item[]
+}
+
+model users_lists {
+  user_id    String     @db.Uuid
+  list_id    String     @db.Uuid
+  role       String     @default("viewer")
+  created_at DateTime   @default(now())
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  list       List       @relation(fields: [list_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, list_id])
+  @@index([user_id])
+  @@index([list_id])
 }

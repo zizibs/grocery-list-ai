@@ -39,26 +39,49 @@ async function getSupabaseServer() {
 async function verifyAuth(request: Request) {
   const supabase = await getSupabaseServer();
   
-  // First try to get session from cookies
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (session) {
-    return { user: session.user, supabase };
-  }
+  try {
+    // First try to get session from cookies
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      throw new Error('Session validation failed');
+    }
+    
+    if (session) {
+      return { user: session.user, supabase };
+    }
 
-  // If no session in cookies, check Authorization header
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new Error('No valid authorization found');
-  }
+    // If no session in cookies, check Authorization header
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header found');
+    }
+    
+    if (!authHeader.startsWith('Bearer ')) {
+      throw new Error('Invalid authorization header format');
+    }
 
-  const token = authHeader.split(' ')[1];
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  
-  if (authError || !user) {
-    throw new Error('Invalid authorization token');
-  }
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      throw new Error('No token provided in authorization header');
+    }
 
-  return { user, supabase };
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError) {
+      console.error('Token validation error:', authError);
+      throw new Error('Invalid or expired token');
+    }
+    
+    if (!user) {
+      throw new Error('No user found for the provided token');
+    }
+
+    return { user, supabase };
+  } catch (error) {
+    console.error('Authentication error:', error);
+    throw error;
+  }
 }
 
 export async function GET(request: Request) {
@@ -69,7 +92,7 @@ export async function GET(request: Request) {
     const list_id = searchParams.get('list_id');
     
     if (!list_id) {
-      throw new Error('list_id is required');
+      return NextResponse.json({ error: 'list_id is required' }, { status: 400 });
     }
 
     const { data, error } = await supabase
@@ -79,15 +102,34 @@ export async function GET(request: Request) {
       .eq('list_id', list_id)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Database query error:', error);
+      throw error;
+    }
+    
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Database error:', error);
-    const status = error instanceof Error && error.message.includes('authorization') ? 401 : 500;
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status }
-    );
+    console.error('Request error:', error);
+    
+    // Handle different types of errors
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      
+      if (errorMessage.includes('authorization') || 
+          errorMessage.includes('token') || 
+          errorMessage.includes('session')) {
+        return NextResponse.json({ error: errorMessage }, { status: 401 });
+      }
+      
+      if (errorMessage.includes('permission denied') || 
+          errorMessage.includes('not allowed')) {
+        return NextResponse.json({ error: errorMessage }, { status: 403 });
+      }
+      
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
+    }
+    
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }
 
