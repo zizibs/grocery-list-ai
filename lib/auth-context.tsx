@@ -20,13 +20,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Session check error:', error);
+        }
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Session check failed:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
 
     // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
     });
 
@@ -35,19 +46,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
-      console.log('Starting sign up process...');
+      console.log('Starting sign up process...', { email });
+      
+      // First check if we can reach Supabase
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (supabaseUrl) {
+        try {
+          const response = await fetch(supabaseUrl);
+          console.log('Supabase reachability check:', {
+            status: response.status,
+            ok: response.ok
+          });
+        } catch (error) {
+          console.error('Cannot reach Supabase URL:', error);
+        }
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin + '/auth/callback'
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            email_confirm_url: `${window.location.origin}/auth/callback`
+          }
         }
       });
       
       console.log('Sign up response:', {
         success: !error,
         hasData: !!data,
-        errorMessage: error?.message
+        errorMessage: error?.message,
+        timestamp: new Date().toISOString()
       });
 
       if (error) {
@@ -70,23 +100,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: error.name,
           stack: error.stack
         } : 'Unknown error type',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL
       });
+      
+      // Enhance the error message for network issues
+      if (error instanceof Error && error.message === 'Failed to fetch') {
+        throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+      }
+      
       throw error;
     }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Sign in error:', error);
+      if (error instanceof Error && error.message === 'Failed to fetch') {
+        throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+      }
+      throw error;
+    }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   };
 
   return (
