@@ -18,6 +18,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Get the site URL for redirect
+  const getSiteUrl = () => {
+    let url = process.env.NEXT_PUBLIC_SITE_URL;
+    // When deploying to production, we should have NEXT_PUBLIC_SITE_URL set
+    if (!url) {
+      // Fallback for development/preview deployments
+      url = window.location.origin;
+    }
+    // Ensure URL has no trailing slash
+    return url.replace(/\/$/, '');
+  };
+
   useEffect(() => {
     // Check active sessions and sets the user
     const checkSession = async () => {
@@ -44,31 +56,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const testSupabaseConnection = async () => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('Supabase URL is not configured');
+    }
+
+    try {
+      // Try to get the Supabase health check endpoint
+      const healthUrl = `${supabaseUrl}/rest/v1/health`;
+      const response = await fetch(healthUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Supabase health check failed:', error);
+      return false;
+    }
+  };
+
   const signUp = async (email: string, password: string) => {
     try {
-      console.log('Starting sign up process...', { email });
+      const siteUrl = getSiteUrl();
+      console.log('Starting sign up process...', { 
+        email,
+        redirectTo: `${siteUrl}/auth/callback`
+      });
       
-      // First check if we can reach Supabase
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (supabaseUrl) {
-        try {
-          const response = await fetch(supabaseUrl);
-          console.log('Supabase reachability check:', {
-            status: response.status,
-            ok: response.ok
-          });
-        } catch (error) {
-          console.error('Cannot reach Supabase URL:', error);
-        }
+      // Test connection before attempting sign up
+      const isConnected = await testSupabaseConnection();
+      if (!isConnected) {
+        throw new Error('Cannot establish connection to authentication service');
       }
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${siteUrl}/auth/callback`,
           data: {
-            email_confirm_url: `${window.location.origin}/auth/callback`
+            email_confirm_url: `${siteUrl}/auth/callback`
           }
         }
       });
@@ -77,7 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         success: !error,
         hasData: !!data,
         errorMessage: error?.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        redirectUrl: `${siteUrl}/auth/callback`
       });
 
       if (error) {
@@ -85,7 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           message: error.message,
           status: error.status,
           name: error.name,
-          stack: error.stack
+          stack: error.stack,
+          redirectUrl: `${siteUrl}/auth/callback`
         });
         throw error;
       }
@@ -104,9 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         url: process.env.NEXT_PUBLIC_SUPABASE_URL
       });
       
-      // Enhance the error message for network issues
-      if (error instanceof Error && error.message === 'Failed to fetch') {
-        throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+      if (error instanceof Error) {
+        if (error.message === 'Failed to fetch') {
+          throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+        } else if (error.message.includes('health check failed')) {
+          throw new Error('Authentication service is currently unavailable. Please try again later.');
+        } else if (error.message.includes('Cannot establish connection')) {
+          throw new Error('Cannot connect to authentication service. Please try again later.');
+        }
       }
       
       throw error;
@@ -115,6 +158,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      // Test connection before attempting sign in
+      const isConnected = await testSupabaseConnection();
+      if (!isConnected) {
+        throw new Error('Cannot establish connection to authentication service');
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -122,8 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
     } catch (error) {
       console.error('Sign in error:', error);
-      if (error instanceof Error && error.message === 'Failed to fetch') {
-        throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+      if (error instanceof Error) {
+        if (error.message === 'Failed to fetch') {
+          throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+        } else if (error.message.includes('health check failed')) {
+          throw new Error('Authentication service is currently unavailable. Please try again later.');
+        } else if (error.message.includes('Cannot establish connection')) {
+          throw new Error('Cannot connect to authentication service. Please try again later.');
+        }
       }
       throw error;
     }

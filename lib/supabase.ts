@@ -21,21 +21,26 @@ export const supabase = createClient(
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: true
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined
     },
     global: {
       headers: {
         'X-Client-Info': 'supabase-js-v2',
       },
-      fetch: (url, options = {}) => {
+      fetch: async (url, options = {}) => {
         const fetchOptions = {
           ...options,
           headers: {
             ...options.headers,
-            'Access-Control-Allow-Origin': '*',
           },
+          credentials: 'include' as const,
+          mode: 'cors' as const,
         };
-        return fetch(url, fetchOptions).then(async (response) => {
+
+        try {
+          const response = await fetch(url, fetchOptions);
           if (!response.ok) {
             const error = await response.text();
             console.error('Supabase fetch error:', {
@@ -43,16 +48,21 @@ export const supabase = createClient(
               statusText: response.statusText,
               error,
               url: url.toString(),
+              headers: Object.fromEntries(response.headers.entries()),
             });
           }
           return response;
-        }).catch(error => {
+        } catch (error) {
           console.error('Network error:', {
-            message: error.message,
+            message: error instanceof Error ? error.message : 'Unknown error',
             url: url.toString(),
+            options: {
+              ...fetchOptions,
+              headers: Object.fromEntries(Object.entries(fetchOptions.headers || {})),
+            },
           });
           throw error;
-        });
+        }
       }
     }
   }
