@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { validateAndSanitizeItemName } from '@/utils/validation';
 
 async function getSupabaseServer() {
   const cookieStore = cookies();
@@ -36,7 +37,7 @@ async function getSupabaseServer() {
   );
 }
 
-async function verifyAuth(request: Request) {
+async function verifyAuthWithBearer(request: Request) {
   const supabase = await getSupabaseServer();
   
   try {
@@ -86,7 +87,7 @@ async function verifyAuth(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const { user, supabase } = await verifyAuth(request);
+    const { user, supabase } = await verifyAuthWithBearer(request);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'toBuy';
     const list_id = searchParams.get('list_id');
@@ -135,18 +136,24 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user, supabase } = await verifyAuth(request);
+    const { user, supabase } = await verifyAuthWithBearer(request);
     const json = await request.json();
 
     if (!json.list_id) {
       return NextResponse.json({ error: 'list_id is required' }, { status: 400 });
     }
 
+    // Validate and sanitize the item name
+    const validation = validateAndSanitizeItemName(json.name);
+    if (!validation.isValid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from('grocery_item')
       .insert([
         {
-          name: json.name,
+          name: validation.sanitizedValue,
           status: 'toBuy',
           list_id: json.list_id,
           created_by: user.id
@@ -169,7 +176,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { user, supabase } = await verifyAuth(request);
+    const { user, supabase } = await verifyAuthWithBearer(request);
     const json = await request.json();
 
     const { data, error } = await supabase
@@ -193,7 +200,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { user, supabase } = await verifyAuth(request);
+    const { user, supabase } = await verifyAuthWithBearer(request);
     const json = await request.json();
 
     const { error } = await supabase

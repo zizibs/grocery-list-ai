@@ -6,30 +6,14 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import TabNavigation from './components/TabNavigation';
 import RecipeModal from './components/RecipeModal';
 import { supabase } from '@/lib/supabase';
-
-interface GroceryItemType {
-  id: string;
-  name: string;
-  status: 'toBuy' | 'purchased';
-  list_id: string;
-}
-
-interface Recipe {
-  title: string;
-  ingredients: string[];
-}
-
-interface List {
-  id: string;
-  name: string;
-  share_code: string;
-}
+import { validateAndSanitizeListName, validateShareCode } from '@/utils/validation';
+import { List, GroceryItem, Recipe } from '@/types/database';
 
 export default function Home() {
   const { user } = useAuth();
   const [lists, setLists] = useState<List[]>([]);
   const [currentList, setCurrentList] = useState<string | null>(null);
-  const [items, setItems] = useState<GroceryItemType[]>([]);
+  const [items, setItems] = useState<GroceryItem[]>([]);
   const [newItem, setNewItem] = useState('');
   const [newListName, setNewListName] = useState('');
   const [shareCode, setShareCode] = useState('');
@@ -96,8 +80,16 @@ export default function Home() {
   const createList = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!newListName.trim() || !user?.id) {
-      setError('Please enter a list name');
+    
+    if (!user?.id) {
+      setError('Please sign in to create a list');
+      return;
+    }
+
+    // Validate list name
+    const nameValidation = validateAndSanitizeListName(newListName);
+    if (!nameValidation.isValid) {
+      setError(nameValidation.error);
       return;
     }
 
@@ -109,7 +101,7 @@ export default function Home() {
         .from('lists')
         .insert([
           {
-            name: newListName.trim(),
+            name: nameValidation.sanitizedValue,
             created_by: user.id,
             share_code: shareCode
           }
@@ -132,9 +124,10 @@ export default function Home() {
       }
 
       if (data) {
-        setLists(prevLists => [...prevLists, data]);
+        const newList = data as unknown as List;
+        setLists(prevLists => [...prevLists, newList]);
         setNewListName('');
-        setCurrentList(data.id);
+        setCurrentList(newList.id as string);
         setError(null);
       }
     } catch (error) {
@@ -145,34 +138,55 @@ export default function Home() {
 
   const joinList = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shareCode.trim()) return;
+    setError(null);
+
+    // Validate share code
+    const codeValidation = validateShareCode(shareCode);
+    if (!codeValidation.isValid) {
+      setError(codeValidation.error);
+      return;
+    }
 
     try {
-      const { data: list, error: listError } = await supabase
+      const { data: listData, error: listError } = await supabase
         .from('lists')
         .select('*')
-        .eq('share_code', shareCode)
+        .eq('share_code', codeValidation.sanitizedValue)
         .single();
 
-      if (listError) throw listError;
+      if (listError) {
+        if (listError.code === 'PGRST116') {
+          setError('List not found. Please check the share code.');
+        } else {
+          throw listError;
+        }
+        return;
+      }
 
-      const { error: shareError } = await supabase
-        .from('users_lists')
-        .insert([
-          {
-            user_id: user?.id,
-            list_id: list.id,
-            role: 'viewer',
-          },
-        ]);
+      if (listData) {
+        const list = listData as unknown as List;
+        const { error: shareError } = await supabase
+          .from('users_lists')
+          .insert([
+            {
+              user_id: user?.id,
+              list_id: list.id,
+              role: 'viewer',
+            },
+          ]);
 
-      if (shareError) throw shareError;
+        if (shareError) throw shareError;
 
-      setLists([...lists, list]);
-      setShareCode('');
-      setCurrentList(list.id);
+        setLists([...lists, list]);
+        setShareCode('');
+        setCurrentList(list.id as string);
+        setError(null);
+      } else {
+        setError('Invalid response from server');
+      }
     } catch (error) {
       console.error('Error joining list:', error);
+      setError('Failed to join list. Please try again.');
     }
   };
 
