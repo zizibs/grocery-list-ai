@@ -89,7 +89,7 @@ export default function Home() {
     // Validate list name
     const nameValidation = validateAndSanitizeListName(newListName);
     if (!nameValidation.isValid) {
-      setError(nameValidation.error);
+      setError(nameValidation.error || 'Invalid list name');
       return;
     }
 
@@ -127,7 +127,9 @@ export default function Home() {
         const newList = data as unknown as List;
         setLists(prevLists => [...prevLists, newList]);
         setNewListName('');
-        setCurrentList(newList.id as string);
+        if (newList.id) {
+          setCurrentList(newList.id);
+        }
         setError(null);
       }
     } catch (error) {
@@ -143,7 +145,7 @@ export default function Home() {
     // Validate share code
     const codeValidation = validateShareCode(shareCode);
     if (!codeValidation.isValid) {
-      setError(codeValidation.error);
+      setError(codeValidation.error || 'Invalid share code');
       return;
     }
 
@@ -165,6 +167,11 @@ export default function Home() {
 
       if (listData) {
         const list = listData as unknown as List;
+        if (!list.id) {
+          setError('Invalid list data received');
+          return;
+        }
+
         const { error: shareError } = await supabase
           .from('users_lists')
           .insert([
@@ -179,7 +186,7 @@ export default function Home() {
 
         setLists([...lists, list]);
         setShareCode('');
-        setCurrentList(list.id as string);
+        setCurrentList(list.id);
         setError(null);
       } else {
         setError('Invalid response from server');

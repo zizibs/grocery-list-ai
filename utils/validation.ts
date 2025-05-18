@@ -9,7 +9,7 @@ const MAX_ITEM_NAME_LENGTH = 200;
 export interface ValidationResult {
   isValid: boolean;
   sanitizedValue?: string;
-  error?: string;
+  error: string | null;  // Make error always present but potentially null
 }
 
 export function validateAndSanitizeListName(name: string): ValidationResult {
@@ -40,7 +40,7 @@ export function validateAndSanitizeListName(name: string): ValidationResult {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
   
-  return { isValid: true, sanitizedValue: sanitized };
+  return { isValid: true, sanitizedValue: sanitized, error: null };
 }
 
 export function validateAndSanitizeItemName(name: string): ValidationResult {
@@ -71,7 +71,7 @@ export function validateAndSanitizeItemName(name: string): ValidationResult {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
   
-  return { isValid: true, sanitizedValue: sanitized };
+  return { isValid: true, sanitizedValue: sanitized, error: null };
 }
 
 export function validateShareCode(code: string): ValidationResult {
@@ -86,5 +86,5 @@ export function validateShareCode(code: string): ValidationResult {
     };
   }
   
-  return { isValid: true, sanitizedValue: processed };
+  return { isValid: true, sanitizedValue: processed, error: null };
 } 
