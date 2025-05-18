@@ -1,4 +1,4 @@
-import { Database } from '@supabase/supabase-js';
+import { Database } from './supabase';
 
 export interface List {
   id: string;
