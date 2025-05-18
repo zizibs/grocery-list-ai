@@ -89,7 +89,7 @@ export default function Home() {
     // Validate list name
     const nameValidation = validateAndSanitizeListName(newListName);
     if (!nameValidation.isValid) {
-      setError(nameValidation.error || 'Invalid list name');
+      setError(nameValidation.error);
       return;
     }
 
@@ -125,11 +125,13 @@ export default function Home() {
 
       if (data) {
         const newList = data as unknown as List;
+        if (!newList.id) {
+          setError('Invalid list data received');
+          return;
+        }
         setLists(prevLists => [...prevLists, newList]);
         setNewListName('');
-        if (newList.id) {
-          setCurrentList(newList.id);
-        }
+        setCurrentList(newList.id);
         setError(null);
       }
     } catch (error) {
@@ -145,7 +147,7 @@ export default function Home() {
     // Validate share code
     const codeValidation = validateShareCode(shareCode);
     if (!codeValidation.isValid) {
-      setError(codeValidation.error || 'Invalid share code');
+      setError(codeValidation.error);
       return;
     }
 
