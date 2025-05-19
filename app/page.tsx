@@ -591,7 +591,7 @@ export default function Home() {
               </li>
             ))}
           </ul>
-              )}
+        )}
             </>
         )}
         <div className="mt-4">

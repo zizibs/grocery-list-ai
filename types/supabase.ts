@@ -9,33 +9,30 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      lists: {
+      grocery_lists: {
         Row: {
           id: string
           name: string
           share_code: string
-          created_by: string
+          owner_id: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
           name: string
           share_code: string
-          created_by: string
+          owner_id: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
           name?: string
           share_code?: string
-          created_by?: string
+          owner_id?: string
           created_at?: string
-          updated_at?: string
         }
       }
-      grocery_item: {
+      grocery_items: {
         Row: {
           id: string
           name: string
@@ -64,23 +61,26 @@ export interface Database {
           updated_at?: string
         }
       }
-      users_lists: {
+      list_members: {
         Row: {
-          user_id: string
+          id: string
           list_id: string
-          role: string
+          user_id: string
+          can_edit: boolean
           created_at: string
         }
         Insert: {
-          user_id: string
+          id?: string
           list_id: string
-          role?: string
+          user_id: string
+          can_edit?: boolean
           created_at?: string
         }
         Update: {
-          user_id?: string
+          id?: string
           list_id?: string
-          role?: string
+          user_id?: string
+          can_edit?: boolean
           created_at?: string
         }
       }
@@ -95,4 +95,38 @@ export interface Database {
       [_ in never]: never
     }
   }
+}
+
+// Types for application use
+export interface List {
+  id: string;
+  name: string;
+  share_code: string;
+  owner_id: string;
+  created_at: string;
+}
+
+export interface GroceryItem {
+  id: string;
+  name: string;
+  status: string;
+  list_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListMember {
+  id: string;
+  list_id: string;
+  user_id: string;
+  can_edit: boolean;
+  created_at: string;
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  ingredients: string[];
+  instructions: string;
 } 

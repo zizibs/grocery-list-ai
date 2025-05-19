@@ -85,6 +85,39 @@ async function verifyAuthWithBearer(request: Request) {
   }
 }
 
+// Check if user has access to a list (either as owner or member with edit permission)
+async function checkListAccess(
+  supabase: any, 
+  userId: string, 
+  listId: string
+): Promise<{ hasAccess: boolean; isOwner: boolean }> {
+  // First check if user is the owner
+  const { data: ownedList, error: ownedError } = await supabase
+    .from('grocery_lists')
+    .select('id')
+    .eq('id', listId)
+    .eq('owner_id', userId)
+    .maybeSingle();
+  
+  if (ownedList) {
+    return { hasAccess: true, isOwner: true };
+  }
+  
+  // Then check if user is a member with edit permission
+  const { data: membership, error: memberError } = await supabase
+    .from('list_members')
+    .select('can_edit')
+    .eq('list_id', listId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  
+  if (membership) {
+    return { hasAccess: membership.can_edit, isOwner: false };
+  }
+  
+  return { hasAccess: false, isOwner: false };
+}
+
 export async function GET(request: Request) {
   try {
     const { user, supabase } = await verifyAuthWithBearer(request);
@@ -97,7 +130,7 @@ export async function GET(request: Request) {
     }
 
     const { data, error } = await supabase
-      .from('grocery_item')
+      .from('grocery_items')
       .select('*')
       .eq('status', status)
       .eq('list_id', list_id)
@@ -156,38 +189,10 @@ export async function POST(request: Request) {
       itemName: validation.sanitizedValue
     });
 
-    // Check if the user owns the list
-    const { data: ownedList, error: ownedError } = await supabase
-      .from('lists')
-      .select('id')
-      .eq('id', json.list_id)
-      .eq('created_by', user.id)
-      .maybeSingle();
+    // Check if user has access to this list
+    const access = await checkListAccess(supabase, user.id, json.list_id);
     
-    console.log('Owned list check:', { found: !!ownedList, error: ownedError?.message });
-
-    // If not the owner, check if the user has shared access
-    let hasAccess = !!ownedList;
-    
-    if (!hasAccess) {
-      const { data: sharedAccess, error: sharedError } = await supabase
-        .from('users_lists')
-        .select('list_id, role')
-        .eq('list_id', json.list_id)
-        .eq('user_id', user.id)
-        .eq('role', 'editor')
-        .maybeSingle();
-      
-      console.log('Shared access check:', { 
-        found: !!sharedAccess, 
-        role: sharedAccess?.role,
-        error: sharedError?.message 
-      });
-      
-      hasAccess = !!sharedAccess;
-    }
-
-    if (!hasAccess) {
+    if (!access.hasAccess) {
       console.log('Permission denied: User', user.id, 'cannot add items to list', json.list_id);
       return NextResponse.json(
         { error: 'You do not have permission to add items to this list' },
@@ -197,7 +202,7 @@ export async function POST(request: Request) {
 
     // Now insert the grocery item with explicit values
     const { data, error } = await supabase
-      .from('grocery_item')
+      .from('grocery_items')
       .insert([
         {
           name: validation.sanitizedValue,
@@ -230,8 +235,22 @@ export async function PUT(request: Request) {
     const { user, supabase } = await verifyAuthWithBearer(request);
     const json = await request.json();
 
+    if (!json.id || !json.list_id) {
+      return NextResponse.json({ error: 'id and list_id are required' }, { status: 400 });
+    }
+
+    // Check if user has access to this list
+    const access = await checkListAccess(supabase, user.id, json.list_id);
+    
+    if (!access.hasAccess) {
+      return NextResponse.json(
+        { error: 'You do not have permission to update items in this list' },
+        { status: 403 }
+      );
+    }
+
     const { data, error } = await supabase
-      .from('grocery_item')
+      .from('grocery_items')
       .update({ status: json.status })
       .eq('id', json.id)
       .select()
@@ -254,8 +273,22 @@ export async function DELETE(request: Request) {
     const { user, supabase } = await verifyAuthWithBearer(request);
     const json = await request.json();
 
+    if (!json.id || !json.list_id) {
+      return NextResponse.json({ error: 'id and list_id are required' }, { status: 400 });
+    }
+
+    // Check if user has access to this list
+    const access = await checkListAccess(supabase, user.id, json.list_id);
+    
+    if (!access.hasAccess) {
+      return NextResponse.json(
+        { error: 'You do not have permission to delete items from this list' },
+        { status: 403 }
+      );
+    }
+
     const { error } = await supabase
-      .from('grocery_item')
+      .from('grocery_items')
       .delete()
       .eq('id', json.id);
 
