@@ -1,51 +1,59 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Ensure environment variables are available
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
 // Log environment variable status (but not the values)
 console.log('Supabase Configuration Status:', {
-  url: !!process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing',
-  key: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing',
+  url: !!supabaseUrl ? 'Set' : 'Missing',
+  key: !!supabaseAnonKey ? 'Set' : 'Missing',
   environment: process.env.NODE_ENV
 });
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+if (!supabaseUrl) {
   throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
 }
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+if (!supabaseAnonKey) {
   throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY');
 }
 
 export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
       flowType: 'pkce',
-      storage: {
+      storage: typeof window !== 'undefined' ? localStorage : {
         getItem: (key) => {
-          if (typeof window !== 'undefined') {
-            return window.localStorage.getItem(key);
-          }
           return null;
         },
-        setItem: (key, value) => {
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(key, value);
-          }
-        },
-        removeItem: (key) => {
-          if (typeof window !== 'undefined') {
-            window.localStorage.removeItem(key);
-          }
-        },
+        setItem: (key, value) => {},
+        removeItem: (key) => {},
       },
     },
     global: {
       headers: {
         'X-Client-Info': 'supabase-js-v2',
       },
-    }
+    },
   }
-); 
+);
+
+// Add a function to help check authentication status
+export const isAuthenticated = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error('Auth session check error:', error);
+      return false;
+    }
+    return !!session?.user;
+  } catch (err) {
+    console.error('Auth check failed:', err);
+    return false;
+  }
+}; 

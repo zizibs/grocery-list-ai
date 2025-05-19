@@ -244,13 +244,16 @@ export default function Home() {
     }
 
     try {
-      // Get the session
+      // Get the session and ensure we're authenticated
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      if (!session || !session.user) {
         setError('Please sign in to add items');
+        console.error('Authentication issue: No valid session found');
         return;
       }
 
+      console.log('Adding item with user ID:', session.user.id, 'to list:', currentList);
+      
       const response = await fetch('/api/groceries', {
         method: 'POST',
         headers: { 
@@ -260,18 +263,19 @@ export default function Home() {
         body: JSON.stringify({ 
           name: newItem, 
           list_id: currentList,
-          user_id: session.user.id
+          created_by: session.user.id // Explicitly set the created_by field
         }),
         credentials: 'include'
       });
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('API error response:', errorData);
         throw new Error(errorData.error || 'Failed to add item');
       }
       
       setNewItem('');
-        fetchItems();
+      fetchItems();
       setError(null);
     } catch (error) {
       console.error('Failed to add item:', error);

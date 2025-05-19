@@ -149,20 +149,58 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
+    // Log the user ID and list ID for debugging
+    console.log('Creating grocery item with:', {
+      userId: user.id,
+      listId: json.list_id,
+      itemName: validation.sanitizedValue
+    });
+
+    // First check if the user has access to this list
+    const { data: listAccess, error: listError } = await supabase
+      .from('lists')
+      .select('id')
+      .eq('id', json.list_id)
+      .eq('created_by', user.id)
+      .maybeSingle();
+
+    // If not found in lists owned by user, check users_lists for shared access
+    if (!listAccess && !listError) {
+      const { data: sharedAccess, error: sharedError } = await supabase
+        .from('users_lists')
+        .select('list_id, role')
+        .eq('list_id', json.list_id)
+        .eq('user_id', user.id)
+        .eq('role', 'editor')
+        .maybeSingle();
+
+      if (!sharedAccess && !sharedError) {
+        return NextResponse.json(
+          { error: 'You do not have permission to add items to this list' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Now insert the grocery item with explicit values
     const { data, error } = await supabase
       .from('grocery_item')
       .insert([
         {
           name: validation.sanitizedValue,
-        status: 'toBuy',
+          status: 'toBuy',
           list_id: json.list_id,
-          created_by: user.id
+          created_by: user.id  // Explicitly set the user ID
         }
       ])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Insert error:', error);
+      throw error;
+    }
+    
     return NextResponse.json(data);
   } catch (error) {
     console.error('Database error:', error);
