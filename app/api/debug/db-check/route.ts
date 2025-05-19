@@ -42,58 +42,58 @@ export async function GET(request: Request) {
   const results: any = {};
   
   try {
-    // Check for lists table
+    // Check for grocery_lists table
     try {
       const { data: lists, error: listsError } = await supabase
-        .from('lists')
+        .from('grocery_lists')
         .select('*')
         .limit(1);
       
-      results.lists = {
+      results.grocery_lists = {
         exists: !listsError,
         count: Array.isArray(lists) ? lists.length : 0,
         error: listsError?.message
       };
     } catch (err) {
-      results.lists = {
+      results.grocery_lists = {
         exists: false,
         error: err instanceof Error ? err.message : 'Unknown error'
       };
     }
     
-    // Check for users_lists table
+    // Check for list_members table
     try {
-      const { data: userLists, error: userListsError } = await supabase
-        .from('users_lists')
+      const { data: listMembers, error: listMembersError } = await supabase
+        .from('list_members')
         .select('*')
         .limit(1);
       
-      results.users_lists = {
-        exists: !userListsError,
-        count: Array.isArray(userLists) ? userLists.length : 0,
-        error: userListsError?.message
+      results.list_members = {
+        exists: !listMembersError,
+        count: Array.isArray(listMembers) ? listMembers.length : 0,
+        error: listMembersError?.message
       };
     } catch (err) {
-      results.users_lists = {
+      results.list_members = {
         exists: false,
         error: err instanceof Error ? err.message : 'Unknown error'
       };
     }
     
-    // Check for grocery_item table
+    // Check for grocery_items table
     try {
       const { data: items, error: itemsError } = await supabase
-        .from('grocery_item')
+        .from('grocery_items')
         .select('*')
         .limit(1);
       
-      results.grocery_item = {
+      results.grocery_items = {
         exists: !itemsError,
         count: Array.isArray(items) ? items.length : 0,
         error: itemsError?.message
       };
     } catch (err) {
-      results.grocery_item = {
+      results.grocery_items = {
         exists: false,
         error: err instanceof Error ? err.message : 'Unknown error'
       };
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     
     try {
       const { data: specificList, error: specificListError } = await supabase
-        .from('lists')
+        .from('grocery_lists')
         .select('*')
         .eq('id', listId)
         .maybeSingle();
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
     // First try to delete the list if it exists but has issues
     try {
       await supabase
-        .from('lists')
+        .from('grocery_lists')
         .delete()
         .eq('id', listId);
     } catch (e) {
@@ -207,12 +207,12 @@ export async function POST(request: Request) {
     
     // Create a new list with the same ID
     const { data, error } = await supabase
-      .from('lists')
+      .from('grocery_lists')
       .insert([
         {
           id: listId,
           name: listName,
-          created_by: session.user.id,
+          owner_id: session.user.id,
           share_code: Math.random().toString(36).substring(2, 8).toUpperCase()
         }
       ])

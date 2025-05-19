@@ -49,8 +49,8 @@ export async function POST(request: Request) {
     
     // 1. Check if the list exists
     const { data: list, error: listError } = await supabase
-      .from('lists')
-      .select('id, name, created_by')
+      .from('grocery_lists')
+      .select('id, name, owner_id')
       .eq('id', listId)
       .single();
     
@@ -63,37 +63,37 @@ export async function POST(request: Request) {
     }
     
     // 2. Check if user is the owner
-    const isOwner = list.created_by === userId;
+    const isOwner = list.owner_id === userId;
     
     // 3. Check if user has shared access
     const { data: sharedAccess, error: sharedError } = await supabase
-      .from('users_lists')
-      .select('role')
+      .from('list_members')
+      .select('can_edit')
       .eq('list_id', listId)
       .eq('user_id', userId)
       .maybeSingle();
     
     // 4. Check for nested queries permissions
     const { data: ownedListResult, error: ownedListError } = await supabase
-      .from('lists')
+      .from('grocery_lists')
       .select('id')
       .eq('id', listId)
-      .eq('created_by', userId)
+      .eq('owner_id', userId)
       .maybeSingle();
       
     const { data: sharedListResult, error: sharedListError } = await supabase
-      .from('users_lists')
-      .select('list_id, role')
+      .from('list_members')
+      .select('list_id, can_edit')
       .eq('list_id', listId)
       .eq('user_id', userId)
-      .eq('role', 'editor')
+      .eq('can_edit', true)
       .maybeSingle();
     
     // 5. Policy check - explicitly check the condition from the RLS policy
     const unionQuery = `
-      SELECT id FROM lists WHERE id = '${listId}' AND created_by = '${userId}'
+      SELECT id FROM grocery_lists WHERE id = '${listId}' AND owner_id = '${userId}'
       UNION
-      SELECT list_id FROM users_lists WHERE list_id = '${listId}' AND user_id = '${userId}' AND role = 'editor'
+      SELECT list_id FROM list_members WHERE list_id = '${listId}' AND user_id = '${userId}' AND can_edit = true
     `;
     
     let policyResult = null;
@@ -115,18 +115,18 @@ export async function POST(request: Request) {
       userId,
       list: {
         name: list.name,
-        created_by: list.created_by
+        owner_id: list.owner_id
       },
       permissions: {
         exists: true,
         isOwner,
         sharedAccess: sharedAccess ? {
           exists: true,
-          role: sharedAccess.role
+          can_edit: sharedAccess.can_edit
         } : {
           exists: false
         },
-        canEdit: isOwner || (sharedAccess?.role === 'editor'),
+        canEdit: isOwner || (sharedAccess?.can_edit === true),
         policyChecks: {
           ownedListCheck: {
             passed: !!ownedListResult,

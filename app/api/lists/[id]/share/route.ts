@@ -36,7 +36,7 @@ async function getSupabaseServer() {
   );
 }
 
-// Update a user's role (viewer/editor) in a shared list
+// Update a user's permission (can_edit) in a shared list
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
@@ -50,22 +50,22 @@ export async function PUT(
     }
     
     const json = await request.json();
-    const { user_id, role } = json;
+    const { user_id, can_edit } = json;
     
     if (!user_id) {
       return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
     }
     
-    if (!role || !['viewer', 'editor'].includes(role)) {
-      return NextResponse.json({ error: 'Valid role (viewer/editor) is required' }, { status: 400 });
+    if (typeof can_edit !== 'boolean') {
+      return NextResponse.json({ error: 'can_edit boolean value is required' }, { status: 400 });
     }
     
     const listId = params.id;
     
     // First check if the requesting user is the owner of the list
     const { data: listData, error: listError } = await supabase
-      .from('lists')
-      .select('created_by')
+      .from('grocery_lists')
+      .select('owner_id')
       .eq('id', listId)
       .single();
     
@@ -73,24 +73,24 @@ export async function PUT(
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
     }
     
-    if (listData.created_by !== session.user.id) {
+    if (listData.owner_id !== session.user.id) {
       return NextResponse.json(
-        { error: 'Only the list owner can update user roles' },
+        { error: 'Only the list owner can update user permissions' },
         { status: 403 }
       );
     }
     
-    // Update the user's role in the list
+    // Update the user's permission in the list
     const { data, error } = await supabase
-      .from('users_lists')
-      .update({ role })
+      .from('list_members')
+      .update({ can_edit })
       .eq('list_id', listId)
       .eq('user_id', user_id)
       .select();
     
     if (error) {
-      console.error('Error updating role:', error);
-      return NextResponse.json({ error: 'Failed to update user role' }, { status: 500 });
+      console.error('Error updating permission:', error);
+      return NextResponse.json({ error: 'Failed to update user permission' }, { status: 500 });
     }
     
     return NextResponse.json(data);

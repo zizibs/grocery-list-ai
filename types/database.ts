@@ -4,14 +4,13 @@ export interface List {
   id: string;
   name: string;
   share_code: string;
-  created_by: string;
+  owner_id: string;
   created_at: string;
-  updated_at: string;
 }
 
-export type DatabaseList = Database['public']['Tables']['lists']['Row'];
-export type DatabaseGroceryItem = Database['public']['Tables']['grocery_item']['Row'];
-export type DatabaseUsersList = Database['public']['Tables']['users_lists']['Row'];
+export type DatabaseList = Database['public']['Tables']['grocery_lists']['Row'];
+export type DatabaseGroceryItem = Database['public']['Tables']['grocery_items']['Row'];
+export type DatabaseListMember = Database['public']['Tables']['list_members']['Row'];
 
 export interface GroceryItem {
   id: string;
@@ -23,10 +22,11 @@ export interface GroceryItem {
   updated_at: string;
 }
 
-export interface UsersList {
-  user_id: string;
+export interface ListMember {
+  id: string;
   list_id: string;
-  role: 'viewer' | 'editor';
+  user_id: string;
+  can_edit: boolean;
   created_at: string;
 }
 
