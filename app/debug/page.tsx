@@ -36,7 +36,7 @@ export default function DebugPage() {
       
       // Fetch all lists from the database (for admin purposes)
       const { data: allLists, error: listsError } = await supabase
-        .from('lists')
+        .from('grocery_lists')
         .select('*')
         .order('created_at', { ascending: false });
       
@@ -45,16 +45,16 @@ export default function DebugPage() {
       
       // Fetch the current user's lists (both owned and shared)
       const { data: ownedLists, error: ownedError } = await supabase
-        .from('lists')
+        .from('grocery_lists')
         .select('*')
-        .eq('created_by', user?.id);
+        .eq('owner_id', user?.id);
       
       if (ownedError) throw ownedError;
       
       // Get shared lists
       const { data: sharedIds, error: sharedError } = await supabase
-        .from('users_lists')
-        .select('list_id, role')
+        .from('list_members')
+        .select('list_id, can_edit')
         .eq('user_id', user?.id);
       
       if (sharedError) throw sharedError;
@@ -62,19 +62,19 @@ export default function DebugPage() {
       let sharedLists: any[] = [];
       if (sharedIds && sharedIds.length > 0) {
         const { data: sharedListsData, error: fetchError } = await supabase
-          .from('lists')
+          .from('grocery_lists')
           .select('*')
           .in('id', sharedIds.map(item => item.list_id));
         
         if (fetchError) throw fetchError;
         
-        // Add role information
+        // Add can_edit information
         sharedLists = (sharedListsData || []).map(list => {
           const userList = sharedIds.find(ul => ul.list_id === list.id);
           return {
             ...list,
             relationship: 'shared',
-            role: userList?.role
+            can_edit: userList?.can_edit
           };
         });
       }
@@ -108,7 +108,7 @@ export default function DebugPage() {
         body: JSON.stringify({
           userId,
           listId,
-          role
+          can_edit: role === 'editor'
         })
       });
       
@@ -304,7 +304,7 @@ export default function DebugPage() {
                           {list.relationship === 'owner' ? (
                             <span className="text-green-600">Owner</span>
                           ) : (
-                            <span className="text-blue-600">{list.role || 'Shared'}</span>
+                            <span className="text-blue-600">{list.can_edit ? 'Editor' : 'Viewer'}</span>
                           )}
                         </td>
                         <td className="p-2 text-xs">{list.id}</td>
@@ -346,10 +346,10 @@ export default function DebugPage() {
                       <tr key={list.id} className="border-t">
                         <td className="p-2">{list.name}</td>
                         <td className="p-2 text-xs">
-                          {list.created_by === user?.id ? (
-                            <span className="text-green-600">{list.created_by} (You)</span>
+                          {list.owner_id === user?.id ? (
+                            <span className="text-green-600">{list.owner_id} (You)</span>
                           ) : (
-                            list.created_by
+                            list.owner_id
                           )}
                         </td>
                         <td className="p-2 text-xs">{list.id}</td>
@@ -462,13 +462,13 @@ export default function DebugPage() {
                     <strong>List:</strong> {permissionCheck.list.name}
                   </div>
                   <div>
-                    <strong>Owner:</strong> {permissionCheck.list.created_by}
+                    <strong>Owner:</strong> {permissionCheck.list.owner_id}
                   </div>
                 </div>
                 
                 <div className="mb-2">
                   <strong>Permission Status:</strong>{' '}
-                  {permissionCheck.permissions.canEdit ? (
+                  {permissionCheck.can_edit ? (
                     <span className="text-green-600 font-bold">Has Edit Access ✓</span>
                   ) : (
                     <span className="text-red-600 font-bold">No Edit Access ✗</span>
@@ -479,16 +479,16 @@ export default function DebugPage() {
                   <strong>Details:</strong>
                   <ul className="list-disc pl-5 mt-1">
                     <li>
-                      Owner Check: {permissionCheck.permissions.isOwner ? (
+                      Owner Check: {permissionCheck.is_owner ? (
                         <span className="text-green-600">Pass ✓</span>
                       ) : (
                         <span className="text-red-600">Fail ✗</span>
                       )}
                     </li>
                     <li>
-                      Shared Access: {permissionCheck.permissions.sharedAccess.exists ? (
+                      Shared Access: {permissionCheck.shared_access.exists ? (
                         <span>
-                          {permissionCheck.permissions.sharedAccess.role === 'editor' ? (
+                          {permissionCheck.shared_access.can_edit ? (
                             <span className="text-green-600">Yes (Editor) ✓</span>
                           ) : (
                             <span className="text-yellow-600">Yes (Viewer) ⚠️</span>
@@ -519,13 +519,13 @@ export default function DebugPage() {
                     <strong>Lists Table:</strong>{' '}
                     {dbCheck.database_check?.lists?.exists ? 'OK' : 'Missing'}
                   </div>
-                  <div className={`p-2 rounded ${dbCheck.database_check?.users_lists?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
+                  <div className={`p-2 rounded ${dbCheck.database_check?.list_members?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
                     <strong>Users Lists Table:</strong>{' '}
-                    {dbCheck.database_check?.users_lists?.exists ? 'OK' : 'Missing'}
+                    {dbCheck.database_check?.list_members?.exists ? 'OK' : 'Missing'}
                   </div>
-                  <div className={`p-2 rounded ${dbCheck.database_check?.grocery_item?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
+                  <div className={`p-2 rounded ${dbCheck.database_check?.grocery_items?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
                     <strong>Grocery Items Table:</strong>{' '}
-                    {dbCheck.database_check?.grocery_item?.exists ? 'OK' : 'Missing'}
+                    {dbCheck.database_check?.grocery_items?.exists ? 'OK' : 'Missing'}
                   </div>
                 </div>
                 
@@ -535,7 +535,7 @@ export default function DebugPage() {
                     <div className="p-2 mt-1 bg-green-100 rounded">
                       <p>List found in database ✓</p>
                       <p><strong>Name:</strong> {dbCheck.database_check.specific_list.data.name}</p>
-                      <p><strong>Owner:</strong> {dbCheck.database_check.specific_list.data.created_by}</p>
+                      <p><strong>Owner:</strong> {dbCheck.database_check.specific_list.data.owner_id}</p>
                     </div>
                   ) : (
                     <div className="p-2 mt-1 bg-red-100 rounded">

@@ -39,220 +39,204 @@ export default function Home() {
 
   const fetchLists = async () => {
     try {
-      // First get the lists where user is the creator
+      setIsLoading(true);
+      
+      // Get user's owned lists
       const { data: ownedLists, error: ownedError } = await supabase
-        .from('lists')
+        .from('grocery_lists')
         .select('*')
-        .eq('created_by', user?.id);
-
+        .eq('owner_id', user?.id);
+      
       if (ownedError) throw ownedError;
-
-      // Then get the lists shared with the user
-      const { data: sharedListIds, error: sharedError } = await supabase
-        .from('users_lists')
-        .select('list_id, role')
+      
+      // Get lists shared with the user
+      const { data: sharedListRelations, error: sharedError } = await supabase
+        .from('list_members')
+        .select('list_id, can_edit')
         .eq('user_id', user?.id);
-
+      
       if (sharedError) throw sharedError;
-
-      // Log for debugging
-      console.log('User lists:', {
-        owned: ownedLists?.length || 0,
-        shared: sharedListIds?.length || 0,
-        userId: user?.id
-      });
-
-      // If there are shared lists, fetch their details
-      let sharedLists = [];
-      if (sharedListIds && sharedListIds.length > 0) {
-        const { data: sharedListsData, error: listsError } = await supabase
-          .from('lists')
+      
+      // Fetch the actual shared list data
+      let sharedLists: any[] = [];
+      if (sharedListRelations && sharedListRelations.length > 0) {
+        const { data: sharedListsData, error: sharedListsError } = await supabase
+          .from('grocery_lists')
           .select('*')
-          .in('id', sharedListIds.map(item => item.list_id));
-
-        if (listsError) throw listsError;
-        sharedLists = sharedListsData || [];
+          .in('id', sharedListRelations.map(r => r.list_id));
         
-        // Add role information to shared lists for UI display
-        sharedLists = sharedLists.map(list => {
-          const userListRelation = sharedListIds.find(item => item.list_id === list.id);
+        if (sharedListsError) throw sharedListsError;
+        
+        // Add can_edit information to shared lists for UI display
+        sharedLists = sharedListsData.map(list => {
+          const userListRelation = sharedListRelations.find(r => r.list_id === list.id);
           return {
             ...list,
-            role: userListRelation?.role
+            can_edit: userListRelation?.can_edit
           };
         });
       }
-
-      // Combine both lists
-      const combinedLists = [...(ownedLists || []), ...sharedLists];
-      setLists(combinedLists);
       
-      if (combinedLists.length > 0 && !currentList) {
-        setCurrentList(combinedLists[0].id);
+      // Combine owned and shared lists
+      const allLists = [...ownedLists, ...sharedLists];
+      setLists(allLists);
+      
+      // If there's at least one list, select the first one
+      if (allLists.length > 0 && !currentList) {
+        setCurrentList(allLists[0].id);
       }
     } catch (error) {
       console.error('Error fetching lists:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch lists');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Function to check permissions for the current list
   const checkListPermissions = async (listId: string) => {
-    if (!user?.id || !listId) return false;
+    if (!user) return false;
     
     try {
-      // Check if user owns the list
+      // Check if user is the owner
       const { data: ownedList, error: ownedError } = await supabase
-        .from('lists')
+        .from('grocery_lists')
         .select('id')
         .eq('id', listId)
-        .eq('created_by', user.id)
+        .eq('owner_id', user.id)
         .maybeSingle();
       
-      if (ownedList) {
-        console.log('User owns this list:', listId);
-        return true;
-      }
+      if (ownedList) return true;
       
-      // Check if user has shared access with editor role
+      // Check if user has shared access with edit permission
       const { data: sharedAccess, error: sharedError } = await supabase
-        .from('users_lists')
-        .select('role')
+        .from('list_members')
+        .select('can_edit')
         .eq('list_id', listId)
         .eq('user_id', user.id)
         .maybeSingle();
       
-      console.log('Shared list access check:', {
-        listId,
-        hasAccess: !!sharedAccess,
-        role: sharedAccess?.role
-      });
+      if (sharedError) {
+        console.error('Error checking permissions:', sharedError);
+        return false;
+      }
       
-      return sharedAccess?.role === 'editor';
+      return {
+        canEdit: sharedAccess?.can_edit === true
+      };
+      
+      // If can_edit is true, user can edit the list
+      return sharedAccess?.can_edit === true;
     } catch (error) {
-      console.error('Error checking list permissions:', error);
+      console.error('Error checking permissions:', error);
       return false;
     }
   };
 
   const createList = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     
-    if (!user?.id) {
-      setError('Please sign in to create a list');
-      return;
-    }
-
-    // Validate list name
-    const nameValidation = validateAndSanitizeListName(newListName);
-    if (!nameValidation.isValid) {
-      setError(nameValidation.error);
-      return;
-    }
-
+    if (!newListName.trim() || !user) return;
+    
     try {
-      // Generate a unique share code
+      setIsLoading(true);
+      setError('');
+      
+      // Generate a random 6-character share code
       const shareCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
-      const { data, error: supabaseError } = await supabase
-        .from('lists')
+      const { data, error } = await supabase
+        .from('grocery_lists')
         .insert([
           {
-            name: nameValidation.sanitizedValue,
-            created_by: user.id,
+            name: newListName.trim(),
+            owner_id: user.id,
             share_code: shareCode
           }
         ])
         .select()
         .single();
-
-      if (supabaseError) {
-        console.error('Error creating list:', supabaseError);
-        if (supabaseError.code === '23505') { // unique violation
-          setError('A list with this share code already exists. Please try again.');
-        } else if (supabaseError.code === '42P01') { // undefined table
-          setError('Database setup incomplete. Please contact support.');
-        } else if (supabaseError.code === '42703') { // undefined column
-          setError('Database schema mismatch. Please contact support.');
-        } else {
-          setError('Failed to create list. Please try again.');
-        }
-        return;
-      }
-
-      if (data) {
-        const newList = data as unknown as List;
-        if (!newList.id) {
-          setError('Invalid list data received');
-          return;
-        }
-        setLists(prevLists => [...prevLists, newList]);
-        setNewListName('');
-        setCurrentList(newList.id);
-        setError(null);
-      }
+      
+      if (error) throw error;
+      
+      // Add the new list to the state
+      setLists([...lists, data]);
+      setCurrentList(data.id);
+      setNewListName('');
+      
+      // Show success message
+      setError(null);
     } catch (error) {
       console.error('Error creating list:', error);
-      setError('An unexpected error occurred. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to create list');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const joinList = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-
-    // Validate share code
-    const codeValidation = validateShareCode(shareCode);
-    if (!codeValidation.isValid) {
-      setError(codeValidation.error);
-      return;
-    }
-
+    
+    if (!shareCode.trim() || !user) return;
+    
     try {
-      const { data: listData, error: listError } = await supabase
-        .from('lists')
+      setIsLoading(true);
+      setError('');
+      
+      // Find the list with this share code
+      const { data: list, error: listError } = await supabase
+        .from('grocery_lists')
         .select('*')
-        .eq('share_code', codeValidation.sanitizedValue)
+        .eq('share_code', shareCode.trim())
+        .maybeSingle();
+      
+      if (listError || !list) {
+        throw new Error('Invalid share code or list not found');
+      }
+      
+      // Check if user already has access to this list
+      const { data: existingAccess, error: accessError } = await supabase
+        .from('list_members')
+        .select('*')
+        .eq('list_id', list.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (existingAccess) {
+        throw new Error('You already have access to this list');
+      }
+      
+      // Add user to the list with viewer permissions
+      const { data: membership, error: membershipError } = await supabase
+        .from('list_members')
+        .insert([
+          {
+            list_id: list.id,
+            user_id: user.id,
+            can_edit: false
+          }
+        ])
+        .select()
         .single();
-
-      if (listError) {
-        if (listError.code === 'PGRST116') {
-          setError('List not found. Please check the share code.');
-        } else {
-          throw listError;
-        }
-        return;
-      }
-
-      if (listData) {
-        const list = listData as unknown as List;
-        if (!list.id) {
-          setError('Invalid list data received');
-          return;
-        }
-
-        const { error: shareError } = await supabase
-          .from('users_lists')
-          .insert([
-            {
-              user_id: user?.id,
-              list_id: list.id,
-              role: 'viewer',
-            },
-          ]);
-
-        if (shareError) throw shareError;
-
-        setLists([...lists, list]);
-        setShareCode('');
-        setCurrentList(list.id);
-        setError(null);
-      } else {
-        setError('Invalid response from server');
-      }
+      
+      if (membershipError) throw membershipError;
+      
+      // Add the shared list to the state
+      const listWithRole = {
+        ...list,
+        can_edit: false
+      };
+      
+      setLists([...lists, listWithRole]);
+      setCurrentList(list.id);
+      setShareCode('');
+      
+      // Show success message
+      setError(null);
     } catch (error) {
       console.error('Error joining list:', error);
-      setError('Failed to join list. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to join list');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -288,68 +272,55 @@ export default function Home() {
 
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    if (!newItem.trim()) {
-      setError('Please enter an item name');
-      return;
-    }
-    if (!currentList) {
-      setError('Please select a list first');
-      return;
-    }
-
+    
+    if (!newItem.trim() || !currentList) return;
+    
     try {
-      // Get the session and ensure we're authenticated
+      setIsLoading(true);
+      setError('');
+      
+      // Get the session
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !session.user) {
-        setError('Please sign in to add items');
-        console.error('Authentication issue: No valid session found');
+      
+      if (!session) {
+        setError('You must be signed in to add items');
         return;
       }
-
-      // Check permissions before attempting to add
+      
+      // Check permissions
       const hasPermission = await checkListPermissions(currentList);
       if (!hasPermission) {
-        console.error('Permission denied: User cannot add items to this list');
-        setError('You do not have permission to add items to this list. Please select a different list or request editor access.');
+        setError('You do not have permission to add items to this list');
         return;
       }
-
-      // Get current list details for debugging
-      const currentListObj = lists.find(list => list.id === currentList);
-      console.log('Adding item to list:', { 
-        listId: currentList, 
-        listName: currentListObj?.name,
-        userId: session.user.id,
-        itemName: newItem
-      });
       
-      const response = await fetch('/api/groceries', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ 
-          name: newItem, 
-          list_id: currentList,
-          created_by: session.user.id // Explicitly set the created_by field
-        }),
-        credentials: 'include'
-      });
+      // Add the item
+      const { data, error } = await supabase
+        .from('grocery_items')
+        .insert([
+          {
+            name: newItem.trim(),
+            status: 'toBuy',
+            list_id: currentList,
+            created_by: session.user.id // Explicitly set the created_by field
+          }
+        ])
+        .select()
+        .single();
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API error response:', errorData);
-        throw new Error(errorData.error || 'Failed to add item');
+      if (error) throw error;
+      
+      // Add the new item to the state if it matches the current tab
+      if (activeTab === 'toBuy') {
+        setItems([...items, data]);
       }
       
       setNewItem('');
-      fetchItems();
-      setError(null);
     } catch (error) {
-      console.error('Failed to add item:', error);
+      console.error('Error adding item:', error);
       setError(error instanceof Error ? error.message : 'Failed to add item');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -492,9 +463,9 @@ export default function Home() {
               <option value="">Select a list...</option>
               {lists.map((list) => {
                 // Determine if user is owner or shared user
-                const isOwner = list.created_by === user?.id;
-                const role = isOwner ? 'owner' : (list as any).role || 'viewer';
-                const roleLabel = isOwner ? '(Owner)' : role === 'editor' ? '(Editor)' : '(Viewer)';
+                const isOwner = list.owner_id === user?.id;
+                const canEdit = isOwner ? true : (list as any).can_edit || false;
+                const roleLabel = isOwner ? '(Owner)' : canEdit ? '(Editor)' : '(Viewer)';
                 
                 return (
                   <option key={list.id} value={list.id}>
@@ -514,8 +485,8 @@ export default function Home() {
                 </div>
                 
                 {/* Show upgrade button if the user is a viewer for this list */}
-                {currentList && lists.find(l => l.id === currentList)?.created_by !== user?.id && 
-                 (lists.find(l => l.id === currentList) as any)?.role === 'viewer' && (
+                {currentList && lists.find(l => l.id === currentList)?.owner_id !== user?.id && 
+                 !(lists.find(l => l.id === currentList) as any)?.can_edit && (
                   <div className="mt-2">
                     <button
                       onClick={() => requestEditorAccess(currentList)}
