@@ -18,6 +18,11 @@ export default function DebugPage() {
   const [loadingLists, setLoadingLists] = useState(true);
   const [permissionCheck, setPermissionCheck] = useState<any>(null);
   const [checkingPermissions, setCheckingPermissions] = useState(false);
+  const [dbCheck, setDbCheck] = useState<any>(null);
+  const [checkingDb, setCheckingDb] = useState(false);
+  const [fixingList, setFixingList] = useState(false);
+  const [fixingPermissions, setFixingPermissions] = useState(false);
+  const [permissionFixResult, setPermissionFixResult] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -165,6 +170,92 @@ export default function DebugPage() {
       console.error('Error checking permissions:', err);
     } finally {
       setCheckingPermissions(false);
+    }
+  };
+
+  const checkDatabase = async () => {
+    setCheckingDb(true);
+    setDbCheck(null);
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/debug/db-check?list_id=${listId}`);
+      const data = await response.json();
+      setDbCheck(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to check database');
+      console.error('Error checking database:', err);
+    } finally {
+      setCheckingDb(false);
+    }
+  };
+  
+  const fixList = async () => {
+    if (!listId) {
+      setError('Please provide a list ID to fix');
+      return;
+    }
+    
+    setFixingList(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/debug/db-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          listId,
+          name: 'Fixed List'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fix list');
+      }
+      
+      setDbCheck({
+        ...dbCheck,
+        list_fix_result: data
+      });
+      
+      fetchLists(); // Refresh lists after fix
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fix list');
+      console.error('Error fixing list:', err);
+    } finally {
+      setFixingList(false);
+    }
+  };
+
+  const fixPermissions = async () => {
+    setFixingPermissions(true);
+    setPermissionFixResult(null);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/debug/fix-permissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fix permissions');
+      }
+      
+      setPermissionFixResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fix permissions');
+      console.error('Error fixing permissions:', err);
+    } finally {
+      setFixingPermissions(false);
     }
   };
 
@@ -322,6 +413,17 @@ export default function DebugPage() {
                 </button>
                 
                 <button
+                  type="button"
+                  onClick={checkDatabase}
+                  disabled={checkingDb}
+                  className={`p-2 rounded text-white ${
+                    checkingDb ? 'bg-gray-300' : 'bg-purple-500 hover:bg-purple-600'
+                  }`}
+                >
+                  {checkingDb ? 'Checking...' : 'Check Database'}
+                </button>
+                
+                <button
                   type="submit"
                   disabled={isLoading}
                   className={`flex-1 p-2 rounded text-white ${
@@ -408,6 +510,69 @@ export default function DebugPage() {
               </div>
             )}
             
+            {dbCheck && (
+              <div className="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded">
+                <h3 className="font-bold text-lg mb-2">Database Check Results</h3>
+                
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className={`p-2 rounded ${dbCheck.database_check?.lists?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
+                    <strong>Lists Table:</strong>{' '}
+                    {dbCheck.database_check?.lists?.exists ? 'OK' : 'Missing'}
+                  </div>
+                  <div className={`p-2 rounded ${dbCheck.database_check?.users_lists?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
+                    <strong>Users Lists Table:</strong>{' '}
+                    {dbCheck.database_check?.users_lists?.exists ? 'OK' : 'Missing'}
+                  </div>
+                  <div className={`p-2 rounded ${dbCheck.database_check?.grocery_item?.exists ? 'bg-green-100' : 'bg-red-100'}`}>
+                    <strong>Grocery Items Table:</strong>{' '}
+                    {dbCheck.database_check?.grocery_item?.exists ? 'OK' : 'Missing'}
+                  </div>
+                </div>
+                
+                <div className="mb-4">
+                  <strong>Specific List Check:</strong>
+                  {dbCheck.database_check?.specific_list?.found ? (
+                    <div className="p-2 mt-1 bg-green-100 rounded">
+                      <p>List found in database ✓</p>
+                      <p><strong>Name:</strong> {dbCheck.database_check.specific_list.data.name}</p>
+                      <p><strong>Owner:</strong> {dbCheck.database_check.specific_list.data.created_by}</p>
+                    </div>
+                  ) : (
+                    <div className="p-2 mt-1 bg-red-100 rounded">
+                      <p>List not found in database ✗</p>
+                      <p><strong>Error:</strong> {dbCheck.database_check?.specific_list?.error}</p>
+                      <button
+                        onClick={fixList}
+                        disabled={fixingList}
+                        className={`mt-2 px-3 py-1 rounded text-white ${
+                          fixingList ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
+                        }`}
+                      >
+                        {fixingList ? 'Fixing...' : 'Fix This List'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {dbCheck.list_fix_result && (
+                  <div className="mb-4 p-2 bg-green-100 rounded">
+                    <p className="font-bold text-green-700">
+                      ✓ List fixed successfully!
+                    </p>
+                    <p>The list has been recreated with the same ID.</p>
+                    <p>Please try adding items to it now.</p>
+                  </div>
+                )}
+                
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm">View Raw Data</summary>
+                  <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto text-xs">
+                    {JSON.stringify(dbCheck, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+            
             {result && (
               <div className="mt-4 p-3 bg-green-100 text-green-700 rounded">
                 <p><strong>Result:</strong> {result.message}</p>
@@ -423,6 +588,65 @@ export default function DebugPage() {
                 </pre>
               </div>
             )}
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 className="text-2xl font-bold mb-4">Troubleshooting Tools</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 border rounded bg-gray-50">
+                <h3 className="text-lg font-semibold mb-2">Database Permissions</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  If you're having permission issues, try running this fix to update your database permissions.
+                </p>
+                <button
+                  onClick={fixPermissions}
+                  disabled={fixingPermissions}
+                  className={`w-full p-2 rounded text-white ${
+                    fixingPermissions ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                >
+                  {fixingPermissions ? 'Fixing Permissions...' : 'Fix Database Permissions'}
+                </button>
+                
+                {permissionFixResult && (
+                  <div className="mt-4 p-2 bg-green-100 text-green-800 rounded text-sm">
+                    <p className="font-bold">✓ Permission fix attempt completed</p>
+                    <details>
+                      <summary className="cursor-pointer">View Results</summary>
+                      <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto text-xs">
+                        {JSON.stringify(permissionFixResult, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4 border rounded bg-gray-50">
+                <h3 className="text-lg font-semibold mb-2">Fix List Structure</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  If a list exists but has structural issues, use this to recreate it with the same ID.
+                </p>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={listId}
+                    onChange={(e) => setListId(e.target.value)}
+                    placeholder="List ID to fix"
+                    className="flex-1 p-2 border rounded"
+                  />
+                  <button
+                    onClick={fixList}
+                    disabled={fixingList || !listId}
+                    className={`px-4 py-2 rounded text-white ${
+                      fixingList || !listId ? 'bg-gray-400' : 'bg-yellow-500 hover:bg-yellow-600'
+                    }`}
+                  >
+                    {fixingList ? 'Fixing...' : 'Fix List'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           
           <div className="text-center mt-8">
