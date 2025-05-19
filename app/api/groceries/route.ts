@@ -154,7 +154,7 @@ export async function POST(request: Request) {
       .insert([
         {
           name: validation.sanitizedValue,
-          status: 'toBuy',
+        status: 'toBuy',
           list_id: json.list_id,
           created_by: user.id
         }

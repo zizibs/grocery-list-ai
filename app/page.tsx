@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import TabNavigation from './components/TabNavigation';
-import RecipeModal from './components/RecipeModal';
+import RecipeChat from './components/RecipeChat';
 import { supabase } from '@/lib/supabase';
 import { validateAndSanitizeListName, validateShareCode } from '@/utils/validation';
 import { List, GroceryItem, Recipe } from '@/types/database';
@@ -22,6 +22,8 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isRecipeChatOpen, setIsRecipeChatOpen] = useState(false);
+  const [purchasedItems, setPurchasedItems] = useState<GroceryItem[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -31,7 +33,7 @@ export default function Home() {
 
   useEffect(() => {
     if (currentList) {
-      fetchItems();
+    fetchItems();
     }
   }, [currentList, activeTab]);
 
@@ -269,7 +271,7 @@ export default function Home() {
       }
       
       setNewItem('');
-      fetchItems();
+        fetchItems();
       setError(null);
     } catch (error) {
       console.error('Failed to add item:', error);
@@ -329,32 +331,41 @@ export default function Home() {
 
   const findRecipes = async () => {
     try {
-      const response = await fetch('/api/groceries?status=purchased&list_id=' + currentList);
-      const purchasedItems = await response.json();
-      if (Array.isArray(purchasedItems)) {
-        const recipeResponse = await fetch('/api/recipes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ purchasedItems }),
-        });
-        const { recipes } = await recipeResponse.json();
-        setRecipes(recipes);
-        setIsModalOpen(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please sign in to view recipes');
+        return;
+      }
+
+      const response = await fetch(`/api/groceries?status=purchased&list_id=${currentList}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setPurchasedItems(data);
+        setIsRecipeChatOpen(true);
       } else {
-        console.error('API did not return an array:', purchasedItems);
+        console.error('API did not return an array:', data);
+        setError('Failed to fetch purchased items');
       }
     } catch (error) {
-      console.error('Failed to fetch purchased items or recipes:', error);
+      console.error('Failed to fetch purchased items:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch purchased items');
     }
   };
 
   return (
     <ProtectedRoute>
-      <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
-        <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
-          <h1 className="text-4xl font-bold text-center mb-8 text-blue-800">
+    <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
+      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
+        <h1 className="text-4xl font-bold text-center mb-8 text-blue-800">
             Grocery Lists
-          </h1>
+        </h1>
 
           <div className="mb-8 space-y-4">
             <form onSubmit={createList} className="flex gap-2">
@@ -420,67 +431,79 @@ export default function Home() {
 
           {currentList && (
             <>
-              <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-              <form onSubmit={addItem} className="flex gap-2 mb-8">
-                <input
-                  type="text"
-                  value={newItem}
-                  onChange={(e) => setNewItem(e.target.value)}
-                  placeholder="Add new item..."
-                  className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="submit"
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  Add
-                </button>
-              </form>
+        <form onSubmit={addItem} className="flex gap-2 mb-8">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            placeholder="Add new item..."
+            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Add
+          </button>
+        </form>
 
-              {isLoading ? (
-                <div className="text-center">Loading...</div>
-              ) : (
-                <ul className="w-full space-y-2">
-                  {items.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm"
+        {isLoading ? (
+          <div className="text-center">Loading...</div>
+        ) : (
+          <ul className="w-full space-y-2">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm"
+              >
+                <span>{item.name}</span>
+                <div className="flex gap-2">
+                  {activeTab === 'toBuy' ? (
+                    <button
+                      onClick={() => updateItemStatus(item.id, 'purchased')}
+                      className="text-green-500 hover:text-green-600"
                     >
-                      <span>{item.name}</span>
-                      <div className="flex gap-2">
-                        {activeTab === 'toBuy' ? (
-                          <button
-                            onClick={() => updateItemStatus(item.id, 'purchased')}
-                            className="text-green-500 hover:text-green-600"
-                          >
-                            ✓
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => updateItemStatus(item.id, 'toBuy')}
-                            className="text-blue-500 hover:text-blue-600"
-                          >
-                            ↩
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteItem(item.id)}
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      ✓
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => updateItemStatus(item.id, 'toBuy')}
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      ↩
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteItem(item.id)}
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    ×
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
               )}
             </>
-          )}
+        )}
+        <div className="mt-4">
+          <button
+            onClick={findRecipes}
+            className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+          >
+            Get Recipe Suggestions
+          </button>
         </div>
+      </div>
 
-        <RecipeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} recipes={recipes} />
-      </main>
+      <RecipeChat
+        isOpen={isRecipeChatOpen}
+        onClose={() => setIsRecipeChatOpen(false)}
+        purchasedItems={purchasedItems}
+      />
+    </main>
     </ProtectedRoute>
   );
 }
