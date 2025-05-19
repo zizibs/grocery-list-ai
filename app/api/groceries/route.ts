@@ -156,16 +156,20 @@ export async function POST(request: Request) {
       itemName: validation.sanitizedValue
     });
 
-    // First check if the user has access to this list
-    const { data: listAccess, error: listError } = await supabase
+    // Check if the user owns the list
+    const { data: ownedList, error: ownedError } = await supabase
       .from('lists')
       .select('id')
       .eq('id', json.list_id)
       .eq('created_by', user.id)
       .maybeSingle();
+    
+    console.log('Owned list check:', { found: !!ownedList, error: ownedError?.message });
 
-    // If not found in lists owned by user, check users_lists for shared access
-    if (!listAccess && !listError) {
+    // If not the owner, check if the user has shared access
+    let hasAccess = !!ownedList;
+    
+    if (!hasAccess) {
       const { data: sharedAccess, error: sharedError } = await supabase
         .from('users_lists')
         .select('list_id, role')
@@ -173,13 +177,22 @@ export async function POST(request: Request) {
         .eq('user_id', user.id)
         .eq('role', 'editor')
         .maybeSingle();
+      
+      console.log('Shared access check:', { 
+        found: !!sharedAccess, 
+        role: sharedAccess?.role,
+        error: sharedError?.message 
+      });
+      
+      hasAccess = !!sharedAccess;
+    }
 
-      if (!sharedAccess && !sharedError) {
-        return NextResponse.json(
-          { error: 'You do not have permission to add items to this list' },
-          { status: 403 }
-        );
-      }
+    if (!hasAccess) {
+      console.log('Permission denied: User', user.id, 'cannot add items to list', json.list_id);
+      return NextResponse.json(
+        { error: 'You do not have permission to add items to this list' },
+        { status: 403 }
+      );
     }
 
     // Now insert the grocery item with explicit values

@@ -50,10 +50,17 @@ export default function Home() {
       // Then get the lists shared with the user
       const { data: sharedListIds, error: sharedError } = await supabase
         .from('users_lists')
-        .select('list_id')
+        .select('list_id, role')
         .eq('user_id', user?.id);
 
       if (sharedError) throw sharedError;
+
+      // Log for debugging
+      console.log('User lists:', {
+        owned: ownedLists?.length || 0,
+        shared: sharedListIds?.length || 0,
+        userId: user?.id
+      });
 
       // If there are shared lists, fetch their details
       let sharedLists = [];
@@ -65,6 +72,15 @@ export default function Home() {
 
         if (listsError) throw listsError;
         sharedLists = sharedListsData || [];
+        
+        // Add role information to shared lists for UI display
+        sharedLists = sharedLists.map(list => {
+          const userListRelation = sharedListIds.find(item => item.list_id === list.id);
+          return {
+            ...list,
+            role: userListRelation?.role
+          };
+        });
       }
 
       // Combine both lists
@@ -76,6 +92,45 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error fetching lists:', error);
+    }
+  };
+
+  // Function to check permissions for the current list
+  const checkListPermissions = async (listId: string) => {
+    if (!user?.id || !listId) return false;
+    
+    try {
+      // Check if user owns the list
+      const { data: ownedList, error: ownedError } = await supabase
+        .from('lists')
+        .select('id')
+        .eq('id', listId)
+        .eq('created_by', user.id)
+        .maybeSingle();
+      
+      if (ownedList) {
+        console.log('User owns this list:', listId);
+        return true;
+      }
+      
+      // Check if user has shared access with editor role
+      const { data: sharedAccess, error: sharedError } = await supabase
+        .from('users_lists')
+        .select('role')
+        .eq('list_id', listId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      console.log('Shared list access check:', {
+        listId,
+        hasAccess: !!sharedAccess,
+        role: sharedAccess?.role
+      });
+      
+      return sharedAccess?.role === 'editor';
+    } catch (error) {
+      console.error('Error checking list permissions:', error);
+      return false;
     }
   };
 
@@ -252,7 +307,22 @@ export default function Home() {
         return;
       }
 
-      console.log('Adding item with user ID:', session.user.id, 'to list:', currentList);
+      // Check permissions before attempting to add
+      const hasPermission = await checkListPermissions(currentList);
+      if (!hasPermission) {
+        console.error('Permission denied: User cannot add items to this list');
+        setError('You do not have permission to add items to this list. Please select a different list or request editor access.');
+        return;
+      }
+
+      // Get current list details for debugging
+      const currentListObj = lists.find(list => list.id === currentList);
+      console.log('Adding item to list:', { 
+        listId: currentList, 
+        listName: currentListObj?.name,
+        userId: session.user.id,
+        itemName: newItem
+      });
       
       const response = await fetch('/api/groceries', {
         method: 'POST',
@@ -363,6 +433,16 @@ export default function Home() {
     }
   };
 
+  // Function to request editor access for a shared list
+  const requestEditorAccess = (listId: string) => {
+    // In a real app, this would send a notification to the list owner
+    // For now, we'll just show a message
+    setError('Request sent to list owner. They will need to grant you editor access.');
+    
+    // You could implement an actual notification system later
+    console.log('Editor access requested for list:', listId);
+  };
+
   return (
     <ProtectedRoute>
     <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
@@ -410,19 +490,41 @@ export default function Home() {
               className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a list...</option>
-              {lists.map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.name}
-                </option>
-              ))}
+              {lists.map((list) => {
+                // Determine if user is owner or shared user
+                const isOwner = list.created_by === user?.id;
+                const role = isOwner ? 'owner' : (list as any).role || 'viewer';
+                const roleLabel = isOwner ? '(Owner)' : role === 'editor' ? '(Editor)' : '(Viewer)';
+                
+                return (
+                  <option key={list.id} value={list.id}>
+                    {list.name} {roleLabel}
+                  </option>
+                );
+              })}
             </select>
 
             {currentList && (
-              <div className="text-center">
-                Share Code:{' '}
-                <span className="font-mono bg-gray-100 px-2 py-1 rounded">
-                  {lists.find((l) => l.id === currentList)?.share_code}
-                </span>
+              <div className="text-center space-y-2">
+                <div>
+                  Share Code:{' '}
+                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">
+                    {lists.find((l) => l.id === currentList)?.share_code}
+                  </span>
+                </div>
+                
+                {/* Show upgrade button if the user is a viewer for this list */}
+                {currentList && lists.find(l => l.id === currentList)?.created_by !== user?.id && 
+                 (lists.find(l => l.id === currentList) as any)?.role === 'viewer' && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => requestEditorAccess(currentList)}
+                      className="text-xs bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+                    >
+                      Request Editor Access
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
