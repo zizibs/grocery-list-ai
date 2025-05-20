@@ -18,10 +18,13 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const fetchRecipeSuggestion = async (previousMessages: Message[] = []) => {
     try {
       setIsLoading(true);
+      setApiError(null);
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -34,7 +37,20 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch recipe suggestion');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API response error:', response.status, errorData);
+        
+        // Check for quota exceeded error (status 429)
+        if (response.status === 429 || 
+            (errorData.error && 
+             (errorData.error.includes('quota') || 
+              errorData.error.includes('rate limit') ||
+              errorData.error.includes('insufficient_quota')))) {
+          setApiError('OpenAI API quota exceeded. Please try again later or contact the administrator.');
+          throw new Error('API quota exceeded');
+        }
+        
+        throw new Error(`Failed to fetch recipe suggestion: ${response.status}`);
       }
 
       const data = await response.json();
@@ -44,6 +60,19 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
       };
     } catch (error) {
       console.error('Error fetching recipe:', error);
+      
+      // Check for quota exceeded in the error message
+      if (error instanceof Error && 
+          (error.message.includes('quota') || 
+           error.message.includes('429') ||
+           error.message.includes('insufficient_quota'))) {
+        setApiError('OpenAI API quota exceeded. Please try again later or contact the administrator.');
+        return {
+          role: 'assistant',
+          content: 'Sorry, the AI service is currently unavailable due to usage limits. Please try again later or contact the administrator to update the API plan.'
+        };
+      }
+      
       return {
         role: 'assistant',
         content: 'Sorry, I had trouble generating a recipe suggestion. Please try again.',
@@ -87,6 +116,13 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
         </button>
       </div>
 
+      {apiError && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 my-2 mx-4 rounded">
+          <p className="font-bold">Error</p>
+          <p>{apiError}</p>
+        </div>
+      )}
+
       <div className="h-80 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 my-8">
@@ -120,12 +156,12 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder={messages.length === 0 ? "Click 'Get Recipe Suggestions' to start" : "Ask a follow-up question..."}
             className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
+            disabled={isLoading || apiError !== null}
           />
           <button
             type="submit"
             className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:bg-blue-300 transition-colors"
-            disabled={isLoading}
+            disabled={isLoading || apiError !== null}
           >
             {messages.length === 0 ? 'Get Recipe Suggestions' : 'Send'}
           </button>
