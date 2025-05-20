@@ -39,12 +39,6 @@ export async function POST(request: Request) {
     }
 
     try {
-      // Convert messages for Gemini API
-      const geminiHistory = previousMessages.map((msg: {role: string, content: string}) => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
-      
       // Create a generative model
       const model = genAI.getGenerativeModel({ 
         model: "gemini-pro",
@@ -68,20 +62,49 @@ export async function POST(request: Request) {
         ],
       });
 
-      // Start a chat session
-      const chat = model.startChat({
-        history: geminiHistory,
-        generationConfig: {
-          maxOutputTokens: 1000,
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40,
-        },
-      });
+      // Set up generation config
+      const generationConfig = {
+        maxOutputTokens: 1000,
+        temperature: 0.7,
+        topP: 0.8,
+        topK: 40,
+      };
+      
+      let response;
 
-      // Generate a response
-      const result = await chat.sendMessage(userMessage);
-      const response = result.response;
+      // Convert messages for Gemini API - if we have previous messages
+      // Filter and validate the history - Gemini requires first message to be from user
+      if (previousMessages.length > 0) {
+        // If first message is not from user, skip the history entirely
+        if (previousMessages[0].role === 'user') {
+          // Create valid history with proper role mapping
+          const validHistory = previousMessages.map((msg: {role: string, content: string}) => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.content }]
+          }));
+          
+          // Start a chat session with the valid history
+          const chat = model.startChat({
+            history: validHistory,
+            generationConfig
+          });
+          
+          // Generate a response
+          const result = await chat.sendMessage(userMessage);
+          response = result.response;
+        } else {
+          // If history starts with non-user message, use single request
+          console.log('Starting fresh because history begins with non-user message');
+          const result = await model.generateContent(userMessage);
+          response = result.response;
+        }
+      } else {
+        // For first-time conversations, use generateContent
+        console.log('First time conversation, using generateContent');
+        const result = await model.generateContent(userMessage);
+        response = result.response;
+      }
+      
       const text = response.text();
 
       return NextResponse.json({
