@@ -32,35 +32,99 @@ export async function POST(request: Request) {
           );
       
       return NextResponse.json({
-        message: fallbackContent,
+        message: "⚠️ *This is an auto-generated response while the AI service is unavailable*\n\n" + fallbackContent,
         role: 'assistant',
         source: 'fallback'
       });
     }
 
     try {
-      // Create a generative model
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-pro",
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-        ],
-      });
+      // Create a generative model 
+      // Try with the latest model name first
+      let model;
+      let modelName = "";
+      
+      try {
+        console.log('Attempting to use gemini-1.5-pro model');
+        modelName = "gemini-1.5-pro"; // Most recent model
+        model = genAI.getGenerativeModel({ 
+          model: modelName,
+          safetySettings: [
+            {
+              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+          ],
+        });
+      } catch (modelError: any) {
+        console.log('Error with gemini-1.5-pro model:', modelError.message);
+        
+        // Try with older model name
+        try {
+          console.log('Attempting to use gemini-pro model');
+          modelName = "gemini-pro"; // Older model version
+          model = genAI.getGenerativeModel({ 
+            model: modelName,
+            safetySettings: [
+              {
+                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+            ],
+          });
+        } catch (secondModelError: any) {
+          console.log('Error with gemini-pro model:', secondModelError.message);
+          
+          // If both fail, try one more model
+          console.log('Attempting to use models/gemini-pro model');
+          modelName = "models/gemini-pro"; // Another potential format
+          model = genAI.getGenerativeModel({ 
+            model: modelName,
+            safetySettings: [
+              {
+                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+            ],
+          });
+        }
+      }
 
       // Set up generation config
       const generationConfig = {
@@ -125,7 +189,7 @@ export async function POST(request: Request) {
       
       // Include the error details
       return NextResponse.json({
-        message: fallbackContent,
+        message: "⚠️ *This is an auto-generated response while the AI service is unavailable*\n\n" + fallbackContent,
         role: 'assistant',
         source: 'fallback',
         error: {
