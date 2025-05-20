@@ -28,6 +28,31 @@ const RECIPES = [
     title: "Quick Sandwich",
     ingredients: ["bread", "cheese", "ham", "lettuce", "tomato", "mayo", "mustard"],
     instructions: "1. Spread mayo and mustard on bread slices.\n2. Layer ham, cheese, lettuce, and tomato.\n3. Top with second bread slice and enjoy."
+  },
+  {
+    title: "Omelette",
+    ingredients: ["eggs", "cheese", "butter", "salt", "pepper", "milk"],
+    instructions: "1. Beat eggs with a splash of milk, salt, and pepper.\n2. Melt butter in a pan over medium heat.\n3. Pour in egg mixture and cook until edges set.\n4. Sprinkle cheese on one half, fold over, and cook until cheese melts."
+  },
+  {
+    title: "Chicken Stir-Fry",
+    ingredients: ["chicken", "bell pepper", "broccoli", "soy sauce", "garlic", "olive oil"],
+    instructions: "1. Cut chicken into bite-sized pieces.\n2. Heat oil in a pan and add minced garlic.\n3. Add chicken and cook until no longer pink.\n4. Add chopped vegetables and stir-fry until tender.\n5. Season with soy sauce."
+  },
+  {
+    title: "Fruit Smoothie",
+    ingredients: ["banana", "berries", "yogurt", "milk", "honey"],
+    instructions: "1. Add banana, berries, yogurt, milk, and honey to a blender.\n2. Blend until smooth.\n3. Pour into a glass and enjoy!"
+  },
+  {
+    title: "Veggie Wrap",
+    ingredients: ["tortilla", "hummus", "cucumber", "carrot", "lettuce", "tomato"],
+    instructions: "1. Spread hummus on tortilla.\n2. Layer thinly sliced vegetables on top.\n3. Roll up tightly and slice in half."
+  },
+  {
+    title: "Baked Potato",
+    ingredients: ["potato", "cheese", "butter", "salt", "pepper", "sour cream"],
+    instructions: "1. Pierce potato with a fork and microwave for 5 minutes, then flip and microwave 5 more minutes.\n2. Cut open and fluff inside with a fork.\n3. Top with butter, cheese, salt, pepper, and sour cream."
   }
 ];
 
@@ -40,6 +65,15 @@ export function findMatchingRecipes(availableIngredients: string[]): {
   instructions: string;
   matchedIngredients: string[];
 }[] {
+  // Handle empty ingredients
+  if (!availableIngredients || availableIngredients.length === 0) {
+    // Return first 3 recipes with empty matchedIngredients arrays if no ingredients provided
+    return RECIPES.slice(0, 3).map(recipe => ({
+      ...recipe,
+      matchedIngredients: []
+    }));
+  }
+  
   const normalizedIngredients = availableIngredients.map(i => 
     i.toLowerCase().trim()
   );
@@ -137,7 +171,19 @@ ${altRecipe.instructions}
   if (lowerQuery.includes('how long') || lowerQuery.includes('time')) {
     return "Most simple recipes take about 20-30 minutes to prepare. Follow the specific timing instructions in the recipe for best results.";
   }
+
+  if (lowerQuery.includes('healthy') || lowerQuery.includes('nutrition') || lowerQuery.includes('calories')) {
+    return "For healthier options, you can reduce oil and salt in most recipes. Adding more vegetables and using lean proteins will make recipes healthier and lower in calories.";
+  }
+  
+  if (lowerQuery.includes('vegan') || lowerQuery.includes('vegetarian')) {
+    return "To make recipes vegetarian, you can substitute meat with tofu, tempeh, or legumes. For vegan recipes, also replace dairy with plant-based alternatives like nut milks, nutritional yeast (instead of cheese), or plant-based yogurts.";
+  }
+  
+  if (lowerQuery.includes('spicy') || lowerQuery.includes('flavor') || lowerQuery.includes('taste')) {
+    return "To add more flavor, try incorporating herbs and spices. Garlic, onions, and citrus juices also boost flavor without adding calories. For spiciness, add chili flakes, hot sauce, or fresh chilies.";
+  }
   
   // Default response
-  return "I'm a simple fallback recipe assistant. I can suggest basic recipes based on ingredients or give general cooking advice. What would you like to know?";
+  return "I'm a recipe assistant. I can suggest recipes based on ingredients or give general cooking advice. Would you like another recipe suggestion or have a specific cooking question?";
 } 

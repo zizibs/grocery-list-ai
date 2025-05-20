@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { generateRecipeSuggestion, generateFollowupResponse } from './fallback';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize Google Generative AI
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
 
-// Check if we should use a fallback response
-// Set this to true to completely bypass the OpenAI API for testing
-const USE_FALLBACK_ONLY = false;
+// Whether to use local fallback implementation
+const USE_FALLBACK_ONLY = process.env.GOOGLE_AI_API_KEY ? false : true;
 
 export async function POST(request: Request) {
   try {
@@ -24,11 +21,15 @@ export async function POST(request: Request) {
       ? `What recipe can I make using these purchased ingredients: ${itemsList}? Please suggest a recipe that uses as many of these ingredients as possible.`
       : `Continue the conversation about recipe suggestions using these ingredients: ${itemsList}`;
     
-    // Option to skip OpenAI API completely
+    // Use fallback if no API key is set or if explicitly configured to use fallback
     if (USE_FALLBACK_ONLY) {
+      console.log('Using fallback recipe generator instead of Gemini API');
       const fallbackContent = isFirstMessage
         ? generateRecipeSuggestion(purchasedItems.map((item: any) => item.name))
-        : generateFollowupResponse(userMessage, purchasedItems.map((item: any) => item.name));
+        : generateFollowupResponse(
+            previousMessages.length > 0 ? previousMessages[previousMessages.length - 1].content : userMessage, 
+            purchasedItems.map((item: any) => item.name)
+          );
       
       return NextResponse.json({
         message: fallbackContent,
@@ -37,33 +38,59 @@ export async function POST(request: Request) {
       });
     }
 
-    // Prepare messages array
-    const messages = [
-      ...previousMessages,
-      {
-        role: 'user',
-        content: userMessage
-      }
-    ];
-
     try {
-      // Call ChatGPT API
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: messages as any[],
-        temperature: 0.7,
-        max_tokens: 500,
+      // Convert messages for Gemini API
+      const geminiHistory = previousMessages.map((msg: {role: string, content: string}) => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      }));
+      
+      // Create a generative model
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-pro",
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+        ],
       });
 
-      const response = completion.choices[0].message;
+      // Start a chat session
+      const chat = model.startChat({
+        history: geminiHistory,
+        generationConfig: {
+          maxOutputTokens: 1000,
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 40,
+        },
+      });
+
+      // Generate a response
+      const result = await chat.sendMessage(userMessage);
+      const response = result.response;
+      const text = response.text();
 
       return NextResponse.json({
-        message: response.content,
-        role: response.role,
-        source: 'openai'
+        message: text,
+        role: 'assistant',
+        source: 'gemini'
       });
-    } catch (openaiError: any) {
-      console.error('OpenAI API error:', openaiError);
+    } catch (geminiError: any) {
+      console.error('Gemini API error:', geminiError);
       
       // If the API fails, use our fallback recipe generator
       const fallbackContent = isFirstMessage
@@ -73,25 +100,16 @@ export async function POST(request: Request) {
             purchasedItems.map((item: any) => item.name)
           );
       
-      // If it's a quota error, also return error details
-      if (openaiError?.status === 429) {
-        return NextResponse.json({
-          message: fallbackContent,
-          role: 'assistant',
-          source: 'fallback',
-          error: {
-            message: 'API quota exceeded. Using fallback recipe generator.',
-            original: openaiError.message,
-            code: openaiError.code || 'quota_exceeded'
-          }
-        });
-      }
-      
-      // For other errors, just use fallback without detailed error
+      // Include the error details
       return NextResponse.json({
         message: fallbackContent,
         role: 'assistant',
-        source: 'fallback'
+        source: 'fallback',
+        error: {
+          message: 'Gemini API error. Using fallback recipe generator.',
+          original: geminiError.message,
+          code: geminiError.code || 'api_error'
+        }
       });
     }
   } catch (error: any) {
