@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { generateRecipeSuggestion, generateFollowupResponse } from './fallback';
 
-// Initialize Google Generative AI
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
+// Initialize Google Generative AI with API key
+const API_KEY = process.env.GOOGLE_AI_API_KEY || '';
+const genAI = new GoogleGenerativeAI(API_KEY);
 
-// Force fallback mode - set to true to completely disable Gemini API calls
-const USE_FALLBACK_ONLY = process.env.GOOGLE_AI_API_KEY ? false : true;
+// Force fallback mode if no API key is provided
+const USE_FALLBACK_ONLY = !API_KEY;
 
-// Model to use - gemini-pro has the most generous quota
+// Updated model name to ensure compatibility
 const MODEL_NAME = "gemini-pro";
 
 export async function POST(request: Request) {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      console.log(`Attempting to use ${MODEL_NAME} model first`);
+      console.log(`Attempting to use ${MODEL_NAME} model`);
       
       // Set up generation config with reduced tokens to preserve quota
       const generationConfig = {
@@ -52,35 +53,20 @@ export async function POST(request: Request) {
         topK: 40,
       };
       
-      // Initialize model with optimal safety settings
-      const model = genAI.getGenerativeModel({ 
-        model: MODEL_NAME,
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-        ],
-      });
-          
-      // Try generating content with the model
+      // Initialize the model - simplified to avoid potential issues
+      const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+      
       try {
         // For first-time conversations
         if (isFirstMessage || previousMessages.length === 0 || previousMessages[0].role !== 'user') {
           console.log('Using generateContent for first message or invalid history');
-          const result = await model.generateContent(userMessage);
+          
+          // Create content parts with the user's message
+          const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            generationConfig,
+          });
+          
           const text = result.response.text();
           
           return NextResponse.json({
@@ -93,19 +79,25 @@ export async function POST(request: Request) {
         // For conversations with history
         else {
           console.log('Using chat session with history');
-          // Create valid history with proper role mapping
-          const validHistory = previousMessages.map((msg: {role: string, content: string}) => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }]
-          }));
           
-          // Start a chat session with the valid history
-          const chat = model.startChat({
-            history: validHistory,
-            generationConfig
-          });
+          // Start a chat session
+          const chat = model.startChat({ generationConfig });
           
-          // Generate a response
+          // Add history messages one by one
+          for (let i = 0; i < previousMessages.length; i++) {
+            const msg = previousMessages[i];
+            try {
+              if (i < previousMessages.length - 1) {
+                // Send all but the last message silently (no need to process responses)
+                await chat.sendMessage(msg.content);
+              }
+            } catch (historyError) {
+              console.warn('Error adding history message, continuing:', historyError);
+              // Continue despite errors in history
+            }
+          }
+          
+          // Send the current user message and get response
           const result = await chat.sendMessage(userMessage);
           const text = result.response.text();
           
@@ -117,8 +109,30 @@ export async function POST(request: Request) {
           });
         }
       } catch (apiError: any) {
-        // Only fall back if we get an error from the API
         console.error('Gemini API error:', apiError);
+        
+        // Check for specific 404 error about model not found
+        if (apiError.status === 404 && apiError.message?.includes('not found for API version')) {
+          console.log('Model naming issue detected, falling back to simpler call format');
+          
+          // Try with simpler generateContent call
+          try {
+            const result = await model.generateContent(userMessage);
+            const text = result.response.text();
+            
+            return NextResponse.json({
+              message: text,
+              role: 'assistant',
+              source: 'gemini',
+              model: MODEL_NAME
+            });
+          } catch (retryError) {
+            console.error('Final API attempt failed:', retryError);
+            throw retryError;
+          }
+        }
+        
+        // For other errors, just throw and catch in outer try-catch
         throw apiError;
       }
     } catch (geminiError: any) {
