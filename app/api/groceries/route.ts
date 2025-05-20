@@ -249,13 +249,6 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Try using service_role client for this operation
-    const adminSupabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { cookies: { get: () => "", set: () => {}, remove: () => {} } }
-    );
-
     // First, check if the item exists and belongs to the specified list
     const { data: item, error: itemError } = await supabase
       .from('grocery_items')
@@ -268,31 +261,30 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Item not found or access denied' }, { status: 404 });
     }
 
-    // Use raw SQL query via RPC to bypass RLS if needed
     try {
-      // First try with the user's normal permissions
+      // Perform a direct SQL query to bypass RLS
       const { data, error } = await supabase
-        .from('grocery_items')
-        .update({ status: json.status })
-        .eq('id', json.id)
-        .select()
-        .single();
+        .rpc('update_grocery_item', {
+          item_id: json.id,
+          new_status: json.status
+        });
 
       if (error) {
-        // If that fails, try with admin privileges (should work regardless of RLS)
-        console.log('Falling back to admin client for update');
-        const { data: adminData, error: adminError } = await adminSupabase
+        console.error('RPC error:', error);
+        
+        // Fall back to direct update
+        const { data: directData, error: directError } = await supabase
           .from('grocery_items')
           .update({ status: json.status })
           .eq('id', json.id)
           .select()
           .single();
 
-        if (adminError) throw adminError;
-        return NextResponse.json(adminData);
+        if (directError) throw directError;
+        return NextResponse.json(directData);
       }
 
-      return NextResponse.json(data);
+      return NextResponse.json({ success: true, data });
     } catch (sqlError) {
       console.error('SQL execution error:', sqlError);
       throw sqlError;
@@ -326,13 +318,6 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Try using service_role client for this operation
-    const adminSupabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { cookies: { get: () => "", set: () => {}, remove: () => {} } }
-    );
-
     // First, check if the item exists and belongs to the specified list
     const { data: item, error: itemError } = await supabase
       .from('grocery_items')
@@ -346,21 +331,22 @@ export async function DELETE(request: Request) {
     }
 
     try {
-      // First try with the user's normal permissions
-      const { error } = await supabase
-        .from('grocery_items')
-        .delete()
-        .eq('id', json.id);
+      // Try using a stored procedure if available
+      const { data, error } = await supabase
+        .rpc('delete_grocery_item', {
+          item_id: json.id
+        });
 
       if (error) {
-        // If that fails, try with admin privileges (should work regardless of RLS)
-        console.log('Falling back to admin client for delete');
-        const { error: adminError } = await adminSupabase
+        console.error('RPC error:', error);
+        
+        // Fall back to direct delete
+        const { error: directError } = await supabase
           .from('grocery_items')
           .delete()
           .eq('id', json.id);
 
-        if (adminError) throw adminError;
+        if (directError) throw directError;
       }
 
       return NextResponse.json({ success: true });
