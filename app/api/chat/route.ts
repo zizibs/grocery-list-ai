@@ -11,9 +11,9 @@ const USE_FALLBACK_ONLY = !API_KEY;
 
 // Fully qualified model name to ensure compatibility
 const MODELS = [
-  "gemini-1.0-pro",      // Try older version naming first
-  "gemini-pro",          // Standard version
-  "models/gemini-pro"    // With models/ prefix
+  "models/gemini-1.5-flash",     // Lightweight model, less likely to hit quota limits
+  "models/gemini-1.5-pro",       // More powerful model
+  "models/gemini-pro-vision"     // Vision model as fallback
 ];
 
 // Helper function to list available models - for debugging
