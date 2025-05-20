@@ -9,8 +9,36 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 // Force fallback mode if no API key is provided
 const USE_FALLBACK_ONLY = !API_KEY;
 
-// Updated model name to ensure compatibility
-const MODEL_NAME = "gemini-pro";
+// Fully qualified model name to ensure compatibility
+const MODELS = [
+  "gemini-1.0-pro",      // Try older version naming first
+  "gemini-pro",          // Standard version
+  "models/gemini-pro"    // With models/ prefix
+];
+
+// Helper function to list available models - for debugging
+async function listAvailableModels() {
+  try {
+    if (!API_KEY) return "No API key provided";
+    
+    // Using raw fetch since the SDK might not expose model listing
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': API_KEY
+      }
+    });
+    
+    if (!response.ok) {
+      return `Error listing models: ${response.status} ${response.statusText}`;
+    }
+    
+    const data = await response.json();
+    return data.models ? data.models.map((m: any) => m.name).join(', ') : "No models found";
+  } catch (error: any) {
+    return `Error listing models: ${error.message}`;
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -42,122 +70,75 @@ export async function POST(request: Request) {
       });
     }
 
-    try {
-      console.log(`Attempting to use ${MODEL_NAME} model`);
-      
-      // Set up generation config with reduced tokens to preserve quota
-      const generationConfig = {
-        maxOutputTokens: 800,
-        temperature: 0.7,
-        topP: 0.8,
-        topK: 40,
-      };
-      
-      // Initialize the model - simplified to avoid potential issues
-      const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-      
+    // Try each model in sequence
+    let lastError = null;
+    
+    for (const modelName of MODELS) {
       try {
-        // For first-time conversations
-        if (isFirstMessage || previousMessages.length === 0 || previousMessages[0].role !== 'user') {
-          console.log('Using generateContent for first message or invalid history');
-          
-          // Create content parts with the user's message
-          const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-            generationConfig,
-          });
-          
+        console.log(`Attempting to use ${modelName} model`);
+        
+        // Set up generation config with reduced tokens to preserve quota
+        const generationConfig = {
+          maxOutputTokens: 800,
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 40,
+        };
+        
+        // Initialize the model - simplified to avoid potential issues
+        const model = genAI.getGenerativeModel({ model: modelName });
+        
+        // Try the simplest possible call format
+        console.log('Using simple text prompt to test API connection');
+        try {
+          const result = await model.generateContent(userMessage);
           const text = result.response.text();
+          
+          console.log(`Successfully used ${modelName} model`);
           
           return NextResponse.json({
             message: text,
             role: 'assistant',
             source: 'gemini',
-            model: MODEL_NAME
+            model: modelName
           });
-        } 
-        // For conversations with history
-        else {
-          console.log('Using chat session with history');
-          
-          // Start a chat session
-          const chat = model.startChat({ generationConfig });
-          
-          // Add history messages one by one
-          for (let i = 0; i < previousMessages.length; i++) {
-            const msg = previousMessages[i];
-            try {
-              if (i < previousMessages.length - 1) {
-                // Send all but the last message silently (no need to process responses)
-                await chat.sendMessage(msg.content);
-              }
-            } catch (historyError) {
-              console.warn('Error adding history message, continuing:', historyError);
-              // Continue despite errors in history
-            }
-          }
-          
-          // Send the current user message and get response
-          const result = await chat.sendMessage(userMessage);
-          const text = result.response.text();
-          
-          return NextResponse.json({
-            message: text,
-            role: 'assistant',
-            source: 'gemini',
-            model: MODEL_NAME
-          });
+        } catch (callError: any) {
+          console.warn(`Simple call failed with ${modelName}:`, callError.message);
+          lastError = callError;
+          // Continue to next model
         }
-      } catch (apiError: any) {
-        console.error('Gemini API error:', apiError);
-        
-        // Check for specific 404 error about model not found
-        if (apiError.status === 404 && apiError.message?.includes('not found for API version')) {
-          console.log('Model naming issue detected, falling back to simpler call format');
-          
-          // Try with simpler generateContent call
-          try {
-            const result = await model.generateContent(userMessage);
-            const text = result.response.text();
-            
-            return NextResponse.json({
-              message: text,
-              role: 'assistant',
-              source: 'gemini',
-              model: MODEL_NAME
-            });
-          } catch (retryError) {
-            console.error('Final API attempt failed:', retryError);
-            throw retryError;
-          }
-        }
-        
-        // For other errors, just throw and catch in outer try-catch
-        throw apiError;
+      } catch (modelError: any) {
+        console.warn(`Error initializing ${modelName}:`, modelError.message);
+        lastError = modelError;
+        // Continue to next model
       }
-    } catch (geminiError: any) {
-      console.error('Gemini API error details:', geminiError);
-      
-      // If the API fails, use our fallback recipe generator
-      const fallbackContent = isFirstMessage
-        ? generateRecipeSuggestion(purchasedItems.map((item: any) => item.name))
-        : generateFollowupResponse(
-            previousMessages[previousMessages.length - 1]?.content || userMessage,
-            purchasedItems.map((item: any) => item.name)
-          );
-      
-      // Include the error details
-      return NextResponse.json({
-        message: "⚠️ *This is an auto-generated response while the AI service is unavailable*\n\n" + fallbackContent,
-        role: 'assistant',
-        source: 'fallback',
-        error: {
-          message: 'Gemini API error. Using fallback recipe generator.',
-          original: geminiError.message,
-          code: geminiError.status || 'api_error'
-        }
-      });
     }
+    
+    // If we got here, all models failed
+    // Try to get list of available models for debugging
+    const availableModels = await listAvailableModels();
+    console.log("Available models:", availableModels);
+    
+    // Use fallback response
+    const fallbackContent = isFirstMessage
+      ? generateRecipeSuggestion(purchasedItems.map((item: any) => item.name))
+      : generateFollowupResponse(
+          previousMessages[previousMessages.length - 1]?.content || userMessage,
+          purchasedItems.map((item: any) => item.name)
+        );
+    
+    // Include detailed error info
+    return NextResponse.json({
+      message: "⚠️ *This is an auto-generated response while the AI service is unavailable*\n\n" + fallbackContent,
+      role: 'assistant',
+      source: 'fallback',
+      error: {
+        message: 'Gemini API error. Using fallback recipe generator.',
+        original: lastError ? lastError.message : 'All models failed',
+        availableModels: availableModels,
+        code: lastError ? lastError.status || 'api_error' : 'all_models_failed'
+      }
+    });
   } catch (error: any) {
     console.error('General error in chat route:', error);
     
