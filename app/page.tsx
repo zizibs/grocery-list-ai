@@ -508,78 +508,81 @@ export default function Home() {
 
           {currentList && (
             <>
-        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+              <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <form onSubmit={addItem} className="flex gap-2 mb-8">
-          <input
-            type="text"
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
-            placeholder="Add new item..."
-            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Add
-          </button>
-        </form>
+              <form onSubmit={addItem} className="flex gap-2 mb-8">
+                <input
+                  type="text"
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  placeholder="Add new item..."
+                  className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Add
+                </button>
+              </form>
 
-        {isLoading ? (
-          <div className="text-center">Loading...</div>
-        ) : (
-          <ul className="w-full space-y-2">
-            {items.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm"
-              >
-                <span>{item.name}</span>
-                <div className="flex gap-2">
-                  {activeTab === 'toBuy' ? (
-                    <button
-                      onClick={() => updateItemStatus(item.id, 'purchased')}
-                      className="text-green-500 hover:text-green-600"
+              {isLoading ? (
+                <div className="text-center">Loading...</div>
+              ) : (
+                <ul className="w-full space-y-2">
+                  {items.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm"
                     >
-                      ✓
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => updateItemStatus(item.id, 'toBuy')}
-                      className="text-blue-500 hover:text-blue-600"
-                    >
-                      ↩
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deleteItem(item.id)}
-                    className="text-red-500 hover:text-red-600"
-                  >
-                    ×
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                      <span>{item.name}</span>
+                      <div className="flex gap-2">
+                        {activeTab === 'toBuy' ? (
+                          <button
+                            onClick={() => updateItemStatus(item.id, 'purchased')}
+                            className="text-green-500 hover:text-green-600"
+                          >
+                            ✓
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => updateItemStatus(item.id, 'toBuy')}
+                            className="text-blue-500 hover:text-blue-600"
+                          >
+                            ↩
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteItem(item.id)}
+                          className="text-red-500 hover:text-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              
+              <div className="mt-6">
+                <button
+                  onClick={findRecipes}
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  {isRecipeChatOpen ? 'Update Recipe Suggestions' : 'Get Recipe Suggestions'}
+                </button>
+              </div>
+
+              {isRecipeChatOpen && (
+                <RecipeChat
+                  isOpen={isRecipeChatOpen}
+                  onClose={() => setIsRecipeChatOpen(false)}
+                  purchasedItems={purchasedItems}
+                />
+              )}
             </>
-        )}
-        <div className="mt-4">
-          <button
-            onClick={findRecipes}
-            className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
-          >
-            Get Recipe Suggestions
-          </button>
-        </div>
+          )}
       </div>
-
-      <RecipeChat
-        isOpen={isRecipeChatOpen}
-        onClose={() => setIsRecipeChatOpen(false)}
-        purchasedItems={purchasedItems}
-      />
     </main>
     </ProtectedRoute>
   );
