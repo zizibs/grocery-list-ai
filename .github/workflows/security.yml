@@ -1,0 +1,76 @@
+name: Security Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sundays at midnight
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Run npm audit
+        id: audit
+        run: |
+          npm audit --json > audit-results.json || echo "Vulnerabilities found but continuing workflow"
+          
+      - name: Process audit results
+        id: process
+        run: |
+          if [ -s audit-results.json ]; then
+            echo "VULNERABILITY_COUNT=$(cat audit-results.json | grep -o '"vulnerabilities":' | wc -l)" >> $GITHUB_ENV
+            echo "HAS_HIGH_SEVERITY=$(cat audit-results.json | grep -o '"severity":"high"' | wc -l)" >> $GITHUB_ENV
+            echo "HAS_CRITICAL_SEVERITY=$(cat audit-results.json | grep -o '"severity":"critical"' | wc -l)" >> $GITHUB_ENV
+          else
+            echo "VULNERABILITY_COUNT=0" >> $GITHUB_ENV
+            echo "HAS_HIGH_SEVERITY=0" >> $GITHUB_ENV
+            echo "HAS_CRITICAL_SEVERITY=0" >> $GITHUB_ENV
+          fi
+      
+      - name: Comment PR with security results
+        if: github.event_name == 'pull_request' && (env.VULNERABILITY_COUNT != '0')
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo, number } = context.issue;
+            
+            const vulnCount = process.env.VULNERABILITY_COUNT || '0';
+            const hasHighSeverity = process.env.HAS_HIGH_SEVERITY > 0;
+            const hasCriticalSeverity = process.env.HAS_CRITICAL_SEVERITY > 0;
+            
+            let securityMessage = `## Security Scan Results\n\n`;
+            
+            if (vulnCount === '0') {
+              securityMessage += `✅ No vulnerabilities found in dependencies!\n`;
+            } else {
+              securityMessage += `⚠️ Found ${vulnCount} potential vulnerabilities in dependencies.\n\n`;
+              
+              if (hasCriticalSeverity) {
+                securityMessage += `⛔ **CRITICAL SEVERITY issues detected!** Please review and fix.\n`;
+              }
+              
+              if (hasHighSeverity) {
+                securityMessage += `🔴 **HIGH SEVERITY issues detected!** Please review.\n`;
+              }
+              
+              securityMessage += `\nRun \`npm audit\` locally to see details and \`npm audit fix\` to attempt automatic fixes.`;
+            }
+            
+            github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: number,
+              body: securityMessage
+            }); 

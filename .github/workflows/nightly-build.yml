@@ -1,0 +1,89 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Runs at 2 AM UTC every day
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  nightly-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: main  # Specifically check out the main branch
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint check
+        run: npm run lint || echo "Linting has issues"
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Run security audit
+        run: npm audit --json > audit-results.json || echo "Vulnerabilities found but continuing workflow"
+      
+      - name: Process audit results
+        id: process
+        run: |
+          if [ -s audit-results.json ]; then
+            echo "VULNERABILITY_COUNT=$(cat audit-results.json | grep -o '"vulnerabilities":' | wc -l)" >> $GITHUB_ENV
+            echo "HAS_HIGH_SEVERITY=$(cat audit-results.json | grep -o '"severity":"high"' | wc -l)" >> $GITHUB_ENV
+            echo "HAS_CRITICAL_SEVERITY=$(cat audit-results.json | grep -o '"severity":"critical"' | wc -l)" >> $GITHUB_ENV
+          else
+            echo "VULNERABILITY_COUNT=0" >> $GITHUB_ENV
+            echo "HAS_HIGH_SEVERITY=0" >> $GITHUB_ENV
+            echo "HAS_CRITICAL_SEVERITY=0" >> $GITHUB_ENV
+          fi
+      
+      - name: Create build status report
+        run: |
+          echo "# Nightly Build Report - $(date +'%Y-%m-%d')" > nightly-report.md
+          echo "" >> nightly-report.md
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ **Build Status**: Successful" >> nightly-report.md
+          else
+            echo "❌ **Build Status**: Failed" >> nightly-report.md
+          fi
+          
+          echo "" >> nightly-report.md
+          echo "## Security Scan" >> nightly-report.md
+          
+          if [ "$VULNERABILITY_COUNT" == "0" ]; then
+            echo "✅ No vulnerabilities found" >> nightly-report.md
+          else
+            echo "⚠️ Found $VULNERABILITY_COUNT potential vulnerabilities" >> nightly-report.md
+            
+            if [ "$HAS_CRITICAL_SEVERITY" -gt "0" ]; then
+              echo "⛔ **CRITICAL SEVERITY issues detected!**" >> nightly-report.md
+            fi
+            
+            if [ "$HAS_HIGH_SEVERITY" -gt "0" ]; then
+              echo "🔴 **HIGH SEVERITY issues detected!**" >> nightly-report.md
+            fi
+          fi
+      
+      - name: Send email notification
+        if: env.HAS_CRITICAL_SEVERITY > 0 || env.HAS_HIGH_SEVERITY > 0 || failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{secrets.MAIL_SERVER}}
+          server_port: ${{secrets.MAIL_PORT}}
+          username: ${{secrets.MAIL_USERNAME}}
+          password: ${{secrets.MAIL_PASSWORD}}
+          subject: "🚨 Nightly Build Alert - Grocery List App"
+          body: file://nightly-report.md
+          to: ${{secrets.DEVOPS_EMAIL}}
+          from: GitHub Actions
+          content_type: text/markdown 
