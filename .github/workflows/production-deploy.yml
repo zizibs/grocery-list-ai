@@ -66,8 +66,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
           scope: ${{ secrets.VERCEL_SCOPE }}
-          vercel-args: '--prod'
-          env-file: .env.production
+          vercel-args: '--prod --env NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} --env NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} --env DATABASE_URL=${{ secrets.DATABASE_URL }} --env DIRECT_URL=${{ secrets.DIRECT_URL }}'
           
       - name: Post-deployment notification
         if: success()

@@ -43,6 +43,14 @@ Automatically deploys to production when changes are pushed to the main branch:
 - Sends a Slack notification about the deployment
 - Can also be triggered manually with the "workflow_dispatch" event
 
+### Debug Environment Variables (`debug-env.yml`)
+
+A manually-triggered workflow to help debug issues with environment variables:
+- Checks if environment variables are available in the workflow
+- Creates and displays environment files
+- Tests Next.js environment loading
+- Attempts a build with debug mode enabled
+
 ## Required Environment Variables
 
 The following environment variables need to be configured as GitHub repository secrets:
@@ -58,14 +66,16 @@ The following environment variables need to be configured as GitHub repository s
 
 ### Vercel Deployment Configuration
 
-To enable the Vercel preview deployments, you need to add the following secrets:
+To enable the Vercel deployments, you need to add the following secrets:
 
 | Secret Name | Description | How to Get It |
 |-------------|-------------|--------------|
-| `VERCEL_TOKEN` | API token for Vercel | Go to Vercel dashboard > Settings > Tokens > Create token |
+| `VERCEL_TOKEN` | API token for Vercel **(REQUIRED)** | Go to Vercel dashboard > Settings > Tokens > Create token |
 | `VERCEL_ORG_ID` | Your Vercel organization ID | From Vercel dashboard > Settings > General > Your ID |
 | `VERCEL_PROJECT_ID` | Your Vercel project ID | From Vercel project dashboard > Settings > General > Project ID |
 | `VERCEL_SCOPE` | Usually your Vercel username or team name | Your username or team slug from Vercel |
+
+Note that `VERCEL_TOKEN` is absolutely required for the deployment workflows to function. Without this token, the Vercel deployment actions will fail with a "Input required and not supplied: vercel-token" error.
 
 ### Email Notification Configuration
 
