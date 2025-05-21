@@ -11,6 +11,12 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -19,6 +25,30 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          
+      - name: Create environment files
+        run: |
+          # Create .env.local
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" > .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env.local
+          echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> .env.local
+          
+          # Create .env.production
+          cp .env.local .env.production
+          
+          # Create .env file (used during the build process)
+          cp .env.local .env
+          
+          # Create .env.development
+          cp .env.local .env.development
+          
+          # Print contents for debugging
+          echo "Environment files created:"
+          ls -la .env*
+          
+          echo "Contents of .env file:"
+          cat .env
           
       - name: Run npm audit
         id: audit

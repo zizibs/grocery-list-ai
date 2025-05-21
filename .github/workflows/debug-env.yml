@@ -1,0 +1,65 @@
+name: Debug Environment Variables
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Create .env files
+        run: |
+          echo "Creating .env.local file"
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" > .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env.local
+          echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> .env.local
+          
+          echo "Creating .env.production file"
+          cp .env.local .env.production
+          
+          echo "Creating .env file"
+          cp .env.local .env
+      
+      - name: Debug Environment Variables
+        run: |
+          echo "Checking if variables are set in the environment:"
+          [[ -n "$NEXT_PUBLIC_SUPABASE_URL" ]] && echo "NEXT_PUBLIC_SUPABASE_URL is set" || echo "NEXT_PUBLIC_SUPABASE_URL is NOT set"
+          [[ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]] && echo "NEXT_PUBLIC_SUPABASE_ANON_KEY is set" || echo "NEXT_PUBLIC_SUPABASE_ANON_KEY is NOT set"
+          
+          echo "Check contents of .env files:"
+          echo ".env.local contents:"
+          cat .env.local || echo "File not found"
+          
+          echo ".env.production contents:"
+          cat .env.production || echo "File not found"
+          
+          echo ".env contents:"
+          cat .env || echo "File not found"
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Test Next.js environment loading
+        run: |
+          echo "console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing');" > test-env.js
+          echo "console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing');" >> test-env.js
+          node test-env.js
+      
+      - name: Try building with debug mode
+        run: NEXT_DEBUG=1 npm run build || echo "Build failed, but that's expected for debugging" 

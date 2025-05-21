@@ -43,12 +43,22 @@ Automatically deploys to production when changes are pushed to the main branch:
 - Sends a Slack notification about the deployment
 - Can also be triggered manually with the "workflow_dispatch" event
 
-## Required Setup for Vercel Deployments
+## Required Environment Variables
 
-To enable the Vercel preview deployments, you need to add the following secrets to your GitHub repository:
+The following environment variables need to be configured as GitHub repository secrets:
 
-1. Go to your repository's **Settings > Secrets and variables > Actions**
-2. Add the following secrets:
+### Supabase Configuration (Required for all workflows)
+
+| Secret Name | Description |
+|-------------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase instance URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous key |
+| `DATABASE_URL` | Your PostgreSQL database connection string |
+| `DIRECT_URL` | Your direct PostgreSQL connection string |
+
+### Vercel Deployment Configuration
+
+To enable the Vercel preview deployments, you need to add the following secrets:
 
 | Secret Name | Description | How to Get It |
 |-------------|-------------|--------------|
@@ -57,7 +67,7 @@ To enable the Vercel preview deployments, you need to add the following secrets 
 | `VERCEL_PROJECT_ID` | Your Vercel project ID | From Vercel project dashboard > Settings > General > Project ID |
 | `VERCEL_SCOPE` | Usually your Vercel username or team name | Your username or team slug from Vercel |
 
-## Required Setup for Email Notifications
+### Email Notification Configuration
 
 To enable email notifications for the nightly build, add these secrets:
 
@@ -69,7 +79,7 @@ To enable email notifications for the nightly build, add these secrets:
 | `MAIL_PASSWORD` | Email account password or app password |
 | `DEVOPS_EMAIL` | Email address to receive notifications |
 
-## Required Setup for Slack Notifications
+### Slack Notification Configuration
 
 To enable Slack notifications for production deployments, add this secret:
 
