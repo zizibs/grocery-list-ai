@@ -414,6 +414,46 @@ export default function Home() {
     console.log('Editor access requested for list:', listId);
   };
 
+  const deleteList = async (listId: string) => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      // Check if user is the owner of the list
+      const isOwner = await checkListPermissions(listId);
+      if (!isOwner) {
+        throw new Error('Only the list owner can delete the list');
+      }
+      
+      // Delete the list
+      const { error } = await supabase
+        .from('grocery_lists')
+        .delete()
+        .eq('id', listId);
+      
+      if (error) throw error;
+      
+      // Update the state
+      const updatedLists = lists.filter(list => list.id !== listId);
+      setLists(updatedLists);
+      
+      // If the deleted list was the current list, select another list
+      if (currentList === listId) {
+        setCurrentList(updatedLists.length > 0 ? updatedLists[0].id : null);
+      }
+      
+      // Show success message
+      setError(null);
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete list');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <ProtectedRoute>
     <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
@@ -477,11 +517,27 @@ export default function Home() {
 
             {currentList && (
               <div className="text-center space-y-2">
-                <div>
-                  Share Code:{' '}
-                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">
-                    {lists.find((l) => l.id === currentList)?.share_code}
-                  </span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    Share Code:{' '}
+                    <span className="font-mono bg-gray-100 px-2 py-1 rounded">
+                      {lists.find((l) => l.id === currentList)?.share_code}
+                    </span>
+                  </div>
+                  
+                  {/* Add delete button for list owner */}
+                  {lists.find(l => l.id === currentList)?.owner_id === user?.id && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this list? This action cannot be undone.')) {
+                          deleteList(currentList);
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700 px-3 py-1 rounded border border-red-500 hover:bg-red-50"
+                    >
+                      Delete List
+                    </button>
+                  )}
                 </div>
                 
                 {/* Show upgrade button if the user is a viewer for this list */}
