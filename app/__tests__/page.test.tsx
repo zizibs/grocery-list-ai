@@ -3,7 +3,6 @@ import { screen, waitFor, act } from '@testing-library/react'
 import { jest, describe, expect, it, beforeEach } from '@jest/globals'
 import Page from '../page'
 import { renderWithProviders } from './test-utils'
-import { useAuth } from '@/lib/auth-context'
 
 // Mock next/navigation
 const mockRouter = {
@@ -20,17 +19,20 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock the auth context
+const mockUseAuth = jest.fn()
 jest.mock('@/lib/auth-context', () => ({
-  useAuth: jest.fn().mockReturnValue({
-    user: null,
-    loading: true
-  })
+  useAuth: () => mockUseAuth()
 }))
 
 describe('Home Page', () => {
   beforeEach(() => {
     // Reset all mocks before each test
     jest.clearAllMocks()
+    // Default auth state
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: true
+    })
   })
 
   it('shows loading spinner initially', async () => {
@@ -38,13 +40,13 @@ describe('Home Page', () => {
       renderWithProviders(<Page />)
     })
     
-    // Check for the loading spinner
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // Check for the loading spinner by its class
+    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
   })
 
   it('redirects to auth page when not authenticated', async () => {
     // Mock the auth context to return no user
-    (useAuth as jest.Mock).mockReturnValue({
+    mockUseAuth.mockReturnValue({
       user: null,
       loading: false
     })
@@ -60,7 +62,7 @@ describe('Home Page', () => {
 
   it('shows grocery list interface when authenticated', async () => {
     // Mock the auth context to return a user
-    (useAuth as jest.Mock).mockReturnValue({
+    mockUseAuth.mockReturnValue({
       user: { id: 'test-user-id' },
       loading: false
     })
