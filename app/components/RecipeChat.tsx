@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { GroceryItem } from '@/types/database';
+import { validateMessage } from '@/utils/contentFilter';
 
 interface Message {
   role: string;
@@ -19,6 +20,7 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
 
   const fetchRecipeSuggestion = async (previousMessages: Message[] = []) => {
     try {
@@ -40,7 +42,6 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
         const errorData = await response.json().catch(() => ({}));
         console.error('API response error:', response.status, errorData);
         
-        // Check for quota exceeded error (status 429)
         if (response.status === 429 || 
             (errorData.error && 
              (errorData.error.includes('quota') || 
@@ -61,7 +62,6 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
     } catch (error) {
       console.error('Error fetching recipe:', error);
       
-      // Check for quota exceeded in the error message
       if (error instanceof Error && 
           (error.message.includes('quota') || 
            error.message.includes('429') ||
@@ -84,6 +84,16 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate message content
+    const validationError = validateMessage(inputMessage);
+    if (validationError) {
+      setContentError(validationError);
+      return;
+    }
+    
+    setContentError(null);
+    
     if (!inputMessage.trim() && messages.length === 0) {
       // If it's the first message, automatically ask for a recipe
       const assistantMessage = await fetchRecipeSuggestion();
@@ -123,6 +133,13 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
         </div>
       )}
 
+      {contentError && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 my-2 mx-4 rounded">
+          <p className="font-bold">Content Warning</p>
+          <p>{contentError}</p>
+        </div>
+      )}
+
       <div className="h-80 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 my-8">
@@ -148,7 +165,7 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
         )}
       </div>
 
-      <div className="p-4 border-t bg-gray-50 rounded-b-lg">
+      <div className="p-4 border-t">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input
             type="text"
