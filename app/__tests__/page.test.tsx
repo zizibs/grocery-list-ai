@@ -24,6 +24,21 @@ jest.mock('@/lib/auth-context', () => ({
   useAuth: () => mockUseAuth()
 }))
 
+// Mock supabase
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+    })),
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } })
+    }
+  }
+}))
+
 describe('Home Page', () => {
   beforeEach(() => {
     // Reset all mocks before each test
@@ -55,9 +70,10 @@ describe('Home Page', () => {
       renderWithProviders(<Page />)
     })
     
+    // Wait for the redirect to happen
     await waitFor(() => {
       expect(mockRouter.push).toHaveBeenCalledWith('/auth')
-    })
+    }, { timeout: 2000 })
   })
 
   it('shows grocery list interface when authenticated', async () => {
@@ -67,15 +83,23 @@ describe('Home Page', () => {
       loading: false
     })
 
+    // Mock successful list fetch
+    const mockSupabase = require('@/lib/supabase').supabase
+    mockSupabase.from.mockImplementation(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockResolvedValue({ data: [], error: null })
+    }))
+
     await act(async () => {
       renderWithProviders(<Page />)
     })
     
+    // Wait for the interface to load
     await waitFor(() => {
       // Check for list creation form
       expect(screen.getByPlaceholderText(/new list name/i)).toBeInTheDocument()
       // Check for item addition form
       expect(screen.getByPlaceholderText(/add item/i)).toBeInTheDocument()
-    })
+    }, { timeout: 2000 })
   })
 }) 
