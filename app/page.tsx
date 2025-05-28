@@ -517,11 +517,27 @@ export default function Home() {
 
             {currentList && (
               <div className="text-center space-y-2">
-                <div>
-                  Share Code:{' '}
-                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">
-                    {lists.find((l) => l.id === currentList)?.share_code}
-                  </span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    Share Code:{' '}
+                    <span className="font-mono bg-gray-100 px-2 py-1 rounded">
+                      {lists.find((l) => l.id === currentList)?.share_code}
+                    </span>
+                  </div>
+                  
+                  {/* Add delete button for list owner */}
+                  {lists.find(l => l.id === currentList)?.owner_id === user?.id && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this list? This action cannot be undone.')) {
+                          deleteList(currentList);
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700 px-3 py-1 rounded border border-red-500 hover:bg-red-50"
+                    >
+                      Delete List
+                    </button>
+                  )}
                 </div>
                 
                 {/* Show upgrade button if the user is a viewer for this list */}
