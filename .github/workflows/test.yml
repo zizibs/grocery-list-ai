@@ -34,7 +34,9 @@ jobs:
         echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> .env
     
     - name: Install dependencies
-      run: npm ci
+      run: |
+        npm install
+        npm ci
     
     - name: Run tests
       run: npm test 
