@@ -4,11 +4,17 @@ import { jest, describe, expect, it, beforeEach } from '@jest/globals'
 import Page from '../page'
 import { renderWithProviders } from './test-utils'
 import { useAuth } from '@/lib/auth-context'
-import { useRouter } from 'next/navigation'
 
 // Mock next/navigation
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  prefetch: jest.fn(),
+  back: jest.fn(),
+}
+
 jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(),
+  useRouter: () => mockRouter,
   usePathname: () => '',
   useSearchParams: () => new URLSearchParams(),
 }))
@@ -22,17 +28,9 @@ jest.mock('@/lib/auth-context', () => ({
 }))
 
 describe('Home Page', () => {
-  const mockRouter = {
-    push: jest.fn(),
-    replace: jest.fn(),
-    prefetch: jest.fn(),
-    back: jest.fn(),
-  }
-
   beforeEach(() => {
     // Reset all mocks before each test
     jest.clearAllMocks()
-    ;(useRouter as jest.Mock).mockReturnValue(mockRouter)
   })
 
   it('shows loading spinner initially', async () => {
