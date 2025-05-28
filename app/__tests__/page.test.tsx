@@ -1,32 +1,62 @@
 import '@testing-library/jest-dom'
-import { screen, waitFor } from '@testing-library/react'
-import { jest, describe, expect, it } from '@jest/globals'
+import { screen, waitFor, act } from '@testing-library/react'
+import { jest, describe, expect, it, beforeEach } from '@jest/globals'
 import Page from '../page'
 import { renderWithProviders } from './test-utils'
 import { useAuth } from '@/lib/auth-context'
+import { useRouter } from 'next/navigation'
+
+// Mock next/navigation
+jest.mock('next/navigation', () => ({
+  useRouter: jest.fn(),
+  usePathname: () => '',
+  useSearchParams: () => new URLSearchParams(),
+}))
 
 // Mock the auth context
 jest.mock('@/lib/auth-context', () => ({
-  useAuth: jest.fn()
+  useAuth: jest.fn().mockReturnValue({
+    user: null,
+    loading: true
+  })
 }))
 
 describe('Home Page', () => {
-  it('renders without crashing', async () => {
-    renderWithProviders(<Page />)
-    await waitFor(() => {
-      expect(screen.getByRole('main')).toBeInTheDocument()
+  const mockRouter = {
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+    back: jest.fn(),
+  }
+
+  beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks()
+    ;(useRouter as jest.Mock).mockReturnValue(mockRouter)
+  })
+
+  it('shows loading spinner initially', async () => {
+    await act(async () => {
+      renderWithProviders(<Page />)
     })
+    
+    // Check for the loading spinner
+    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
-  it('shows loading state initially', () => {
-    renderWithProviders(<Page />)
-    expect(screen.getByText(/loading/i)).toBeInTheDocument()
-  })
-
-  it('handles unauthenticated state', async () => {
-    renderWithProviders(<Page />)
+  it('redirects to auth page when not authenticated', async () => {
+    // Mock the auth context to return no user
+    (useAuth as jest.Mock).mockReturnValue({
+      user: null,
+      loading: false
+    })
+    
+    await act(async () => {
+      renderWithProviders(<Page />)
+    })
+    
     await waitFor(() => {
-      expect(screen.getByText(/sign in/i)).toBeInTheDocument()
+      expect(mockRouter.push).toHaveBeenCalledWith('/auth')
     })
   })
 
@@ -37,7 +67,9 @@ describe('Home Page', () => {
       loading: false
     })
 
-    renderWithProviders(<Page />)
+    await act(async () => {
+      renderWithProviders(<Page />)
+    })
     
     await waitFor(() => {
       // Check for list creation form
