@@ -414,6 +414,46 @@ export default function Home() {
     console.log('Editor access requested for list:', listId);
   };
 
+  const deleteList = async (listId: string) => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      // Check if user is the owner of the list
+      const isOwner = await checkListPermissions(listId);
+      if (!isOwner) {
+        throw new Error('Only the list owner can delete the list');
+      }
+      
+      // Delete the list
+      const { error } = await supabase
+        .from('grocery_lists')
+        .delete()
+        .eq('id', listId);
+      
+      if (error) throw error;
+      
+      // Update the state
+      const updatedLists = lists.filter(list => list.id !== listId);
+      setLists(updatedLists);
+      
+      // If the deleted list was the current list, select another list
+      if (currentList === listId) {
+        setCurrentList(updatedLists.length > 0 ? updatedLists[0].id : null);
+      }
+      
+      // Show success message
+      setError(null);
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete list');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <ProtectedRoute>
     <main className="flex min-h-screen flex-col items-center p-24 bg-gradient-to-b from-blue-50 to-blue-100">
