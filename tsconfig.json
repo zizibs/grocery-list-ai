@@ -21,22 +21,8 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "types": [
-      "jest",
-      "@testing-library/jest-dom",
-      "node",
-      "react",
-      "react-dom"
-    ]
+    "types": ["jest", "node", "@testing-library/jest-dom"]
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "jest.d.ts"
-  ],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "jest.setup.js"],
   "exclude": ["node_modules"]
 }

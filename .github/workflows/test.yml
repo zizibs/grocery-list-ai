@@ -10,35 +10,36 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        node-version: [18.x]
+
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-      ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
       NODE_ENV: test
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
     
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: ${{ matrix.node-version }}
         cache: 'npm'
     
-    - name: Create .env file
-      run: |
-        echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" > .env
-        echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
-        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
-        echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> .env
-    
     - name: Install dependencies
-      run: |
-        npm install
-        npm ci
+      run: npm ci
     
     - name: Run tests
-      run: npm test 
+      run: npm test
+      
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: true
