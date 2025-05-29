@@ -20,9 +20,14 @@ const httpsOptions = {
   cert: fs.readFileSync('./certificates/certificate.pem'),
 };
 
-// More secure credentials (you should change these)
-const SECURE_USERNAME = 'admin';
-const SECURE_PASSWORD_HASH = hashPassword('MyVerySecurePassword123!');
+// Credentials from environment variables
+const SECURE_USERNAME = process.env.ADMIN_USERNAME;
+const SECURE_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
+
+if (!SECURE_USERNAME || !SECURE_PASSWORD_HASH) {
+  console.error('Error: ADMIN_USERNAME and ADMIN_PASSWORD_HASH environment variables must be set');
+  process.exit(1);
+}
 
 // Rate limiting
 const loginAttempts = new Map();
