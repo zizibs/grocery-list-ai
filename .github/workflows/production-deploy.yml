@@ -14,6 +14,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
     
     steps:
       - name: Checkout code
@@ -75,36 +77,10 @@ jobs:
           vercel-args: '--prod --env NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} --env NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} --env DATABASE_URL=${{ secrets.DATABASE_URL }} --env DIRECT_URL=${{ secrets.DIRECT_URL }}'
           
       - name: Notify Slack
+        if: env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          payload: |
-            {
-              "text": "🚀 Successfully deployed new version to production!",
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "🚀 New Production Deployment",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Commit:* ${{ github.event.head_commit.message }}\n*Author:* ${{ github.event.head_commit.author.name }}"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "<https://grocery-list-ai.vercel.app|View Live Site>"
-                  }
-                }
-              ]
-            }
+          payload: '{"text":"🚀 Successfully deployed new version to production!","blocks":[{"type":"header","text":{"type":"plain_text","text":"🚀 New Production Deployment","emoji":true}},{"type":"section","text":{"type":"mrkdwn","text":"*Commit:* ${{ github.event.head_commit.message }}\n*Author:* ${{ github.event.head_commit.author.name }}"}},{"type":"section","text":{"type":"mrkdwn","text":"<https://grocery-list-ai.vercel.app|View Live Site>"}}]}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK 
