@@ -28,7 +28,11 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        run: |
+          # First, ensure package-lock.json is in sync
+          npm install
+          # Then perform clean install
+          npm ci
       
       - name: Create environment files
         run: |
@@ -104,16 +108,27 @@ jobs:
             fi
           fi
       
-      - name: Send email notification
-        if: env.HAS_CRITICAL_SEVERITY > 0 || env.HAS_HIGH_SEVERITY > 0 || failure()
+      - name: Send Email Notification
+        if: env.EMAIL_RECIPIENT != ''
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: ${{secrets.MAIL_SERVER}}
-          server_port: ${{secrets.MAIL_PORT}}
-          username: ${{secrets.MAIL_USERNAME}}
-          password: ${{secrets.MAIL_PASSWORD}}
-          subject: "🚨 Nightly Build Alert - Grocery List App"
-          body: file://nightly-report.md
-          to: ${{secrets.DEVOPS_EMAIL}}
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: Nightly Build Report - ${{ github.repository }}
+          body: |
+            Nightly build completed with status: ${{ job.status }}
+            
+            Build Details:
+            - Repository: ${{ github.repository }}
+            - Branch: ${{ github.ref }}
+            - Commit: ${{ github.sha }}
+            - Run ID: ${{ github.run_id }}
+            
+            View the full build logs here:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ secrets.EMAIL_RECIPIENT }}
           from: GitHub Actions
-          content_type: text/markdown 
+        env:
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }} 

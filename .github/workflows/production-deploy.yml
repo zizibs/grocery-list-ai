@@ -74,8 +74,7 @@ jobs:
           scope: ${{ secrets.VERCEL_SCOPE }}
           vercel-args: '--prod --env NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} --env NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} --env DATABASE_URL=${{ secrets.DATABASE_URL }} --env DIRECT_URL=${{ secrets.DIRECT_URL }}'
           
-      - name: Post-deployment notification
-        if: success()
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v1.23.0
         with:
           payload: |
