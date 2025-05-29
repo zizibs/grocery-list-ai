@@ -109,6 +109,7 @@ jobs:
           fi
       
       - name: Send Email Notification
+        if: env.EMAIL_RECIPIENT != ''
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
@@ -128,4 +129,6 @@ jobs:
             View the full build logs here:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           to: ${{ secrets.EMAIL_RECIPIENT }}
-          from: GitHub Actions 
+          from: GitHub Actions
+        env:
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }} 
