@@ -2,25 +2,24 @@ import { ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import { AuthProvider } from '@/lib/auth-context'
 
-// Mock Supabase client
-jest.mock('@/lib/supabase', () => ({
-  supabase: {
+// Mock Supabase auth
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
     auth: {
-      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
-      onAuthStateChange: jest.fn().mockReturnValue({ data: { subscription: { unsubscribe: jest.fn() } } }),
-      signInWithPassword: jest.fn(),
-      signUp: jest.fn(),
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: jest.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: jest.fn() } }
+      }),
+      signIn: jest.fn(),
       signOut: jest.fn(),
     },
-    from: jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      in: jest.fn().mockReturnThis(),
-      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-      single: jest.fn().mockResolvedValue({ data: null, error: null }),
-      insert: jest.fn().mockReturnThis(),
-    }),
-  },
+    from: jest.fn(() => ({
+      select: jest.fn(),
+      insert: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    })),
+  }),
 }))
 
 export function renderWithProviders(ui: ReactNode) {

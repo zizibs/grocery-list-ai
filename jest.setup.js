@@ -20,14 +20,12 @@ jest.mock('next/navigation', () => ({
     return {
       push: jest.fn(),
       replace: jest.fn(),
+      prefetch: jest.fn(),
       back: jest.fn(),
     };
   },
   usePathname() {
-    return '/';
-  },
-  useSearchParams() {
-    return new URLSearchParams();
+    return '';
   },
 }));
 
@@ -35,6 +33,10 @@ jest.mock('next/navigation', () => ({
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: jest.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: jest.fn() } }
+      }),
       signIn: jest.fn(),
       signOut: jest.fn(),
       getUser: jest.fn(),
@@ -53,7 +55,9 @@ jest.mock('openai', () => ({
   OpenAI: jest.fn().mockImplementation(() => ({
     chat: {
       completions: {
-        create: jest.fn(),
+        create: jest.fn().mockResolvedValue({
+          choices: [{ message: { content: 'Mocked AI response' } }],
+        }),
       },
     },
   })),
@@ -63,7 +67,24 @@ jest.mock('openai', () => ({
 jest.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
     getGenerativeModel: jest.fn().mockReturnValue({
-      generateContent: jest.fn(),
+      generateContent: jest.fn().mockResolvedValue({
+        response: { text: () => 'Mocked AI response' },
+      }),
     }),
   })),
 }));
+
+// Mock next-auth
+jest.mock('next-auth/react', () => ({
+  useSession() {
+    return { data: null, status: 'unauthenticated' };
+  },
+  signIn: jest.fn(),
+  signOut: jest.fn(),
+}));
+
+// Mock environment variables
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://mock-supabase-url.com';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'mock-anon-key';
+process.env.OPENAI_API_KEY = 'mock-openai-key';
+process.env.GOOGLE_AI_API_KEY = 'mock-google-ai-key';

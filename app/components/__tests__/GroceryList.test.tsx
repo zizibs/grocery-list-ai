@@ -1,6 +1,7 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import GroceryList from '../GroceryList';
+import { renderWithProviders } from '@/app/__tests__/test-utils';
+import GroceryList from '@/app/components/GroceryList';
 import { GroceryItem } from '@/types/database';
 
 // Mock data
@@ -34,7 +35,7 @@ describe('GroceryList Component', () => {
   });
 
   it('renders grocery items correctly', () => {
-    render(
+    renderWithProviders(
       <GroceryList
         items={mockItems}
         onItemUpdate={mockOnItemUpdate}
@@ -47,7 +48,7 @@ describe('GroceryList Component', () => {
   });
 
   it('handles item purchase toggle', async () => {
-    render(
+    renderWithProviders(
       <GroceryList
         items={mockItems}
         onItemUpdate={mockOnItemUpdate}
@@ -65,7 +66,7 @@ describe('GroceryList Component', () => {
   });
 
   it('handles item deletion', async () => {
-    render(
+    renderWithProviders(
       <GroceryList
         items={mockItems}
         onItemUpdate={mockOnItemUpdate}
@@ -80,7 +81,7 @@ describe('GroceryList Component', () => {
   });
 
   it('displays empty state when no items', () => {
-    render(
+    renderWithProviders(
       <GroceryList
         items={[]}
         onItemUpdate={mockOnItemUpdate}
