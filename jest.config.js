@@ -34,6 +34,11 @@ const customJestConfig = {
     },
   },
   testTimeout: 10000,
+  globals: {
+    'ts-jest': {
+      tsconfig: 'tsconfig.jest.json',
+    },
+  },
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
