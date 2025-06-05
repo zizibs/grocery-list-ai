@@ -2,6 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci --legacy-peer-deps
 
 # Rebuild the source code only when needed
@@ -10,6 +11,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
+
+# before npm run build
+ENV NEXT_PUBLIC_SUPABASE_URL=http://localhost
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=dummy-key
+
 RUN npm run build
 
 # Production image, copy all the files and run next
