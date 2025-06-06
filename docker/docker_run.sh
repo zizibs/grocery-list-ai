@@ -19,6 +19,28 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
     exit 1
 fi
 
+# Validate required environment variables
+REQUIRED_VARS=(
+    "NEXT_PUBLIC_SUPABASE_URL"
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    "SUPABASE_SERVICE_ROLE_KEY"
+    "ADMIN_USERNAME"
+    "ADMIN_PASSWORD_HASH"
+)
+
+MISSING_VARS=()
+for VAR in "${REQUIRED_VARS[@]}"; do
+    if ! grep -q "^${VAR}=" "$PROJECT_ROOT/.env"; then
+        MISSING_VARS+=("$VAR")
+    fi
+done
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+    echo "Error: Missing required environment variables in .env file:"
+    printf '%s\n' "${MISSING_VARS[@]}"
+    exit 1
+fi
+
 echo "Checking for existing container..."
 # Stop and remove existing container if it exists
 if [ "$(docker ps -q -f name=grocery-list-container)" ]; then
@@ -37,6 +59,7 @@ docker run --detach \
   --name grocery-list-container \
   --network="host" \
   --env-file .env \
+  -e NODE_ENV="production" \
   -p 3000:3000 \
   grocery-list-ai:latest
 
