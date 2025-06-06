@@ -1,10 +1,45 @@
 #!/bin/bash
 set -e
 
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo "Error: Docker is not installed. Please install Docker first."
+    exit 1
+fi
+
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Get the project root directory (parent of script directory)
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+# Check if .env file exists
+if [ ! -f "$PROJECT_ROOT/.env" ]; then
+    echo "Error: .env file not found in $PROJECT_ROOT"
+    echo "Please create a .env file with the required environment variables"
+    exit 1
+fi
+
+# Validate required environment variables
+REQUIRED_VARS=(
+    "NEXT_PUBLIC_SUPABASE_URL"
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    "SUPABASE_SERVICE_ROLE_KEY"
+    "ADMIN_USERNAME"
+    "ADMIN_PASSWORD_HASH"
+)
+
+MISSING_VARS=()
+for VAR in "${REQUIRED_VARS[@]}"; do
+    if ! grep -q "^${VAR}=" "$PROJECT_ROOT/.env"; then
+        MISSING_VARS+=("$VAR")
+    fi
+done
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+    echo "Error: Missing required environment variables in .env file:"
+    printf '%s\n' "${MISSING_VARS[@]}"
+    exit 1
+fi
 
 echo "Checking for existing container..."
 # Stop and remove existing container if it exists
@@ -17,18 +52,27 @@ elif [ "$(docker ps -aq -f status=exited -f name=grocery-list-container)" ]; the
     docker rm grocery-list-container
 fi
 
-echo "Running grocery-list-ai Docker container in background..."
-# Explicitly setting the DATABASE_URL environment variable and running in detached mode
+echo "Running grocery-list-ai Docker container..."
+# Run the container with environment variables from .env file
 cd "$PROJECT_ROOT"
-docker run --detach --network="host" \
-  -e DATABASE_URL="postgresql://groceryuser:grocerypass@localhost:5432/grocery_list?schema=public" \
-  -p 3000:3000 \
+docker run --detach \
   --name grocery-list-container \
-  grocery-list-ai
+  --network="host" \
+  --env-file .env \
+  -e NODE_ENV="production" \
+  -p 3000:3000 \
+  grocery-list-ai:latest
+
+# Check if container started successfully
+if [ $? -eq 0 ]; then
+    echo "✅ Container started successfully!"
+else
+    echo "❌ Failed to start container"
+    exit 1
+fi
 
 # Show container status
 echo ""
-echo "Container started successfully!"
 echo "------------------------"
 echo "Container status:"
 docker ps --filter "name=grocery-list-container" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
@@ -39,7 +83,7 @@ echo "To view logs: docker logs grocery-list-container"
 echo "To view logs continuously: docker logs -f grocery-list-container"
 echo "To stop: docker stop grocery-list-container"
 
-# Enter the container shell with custom prompt
+# Enter the container shell
 echo "Entering Docker shell..."
 echo "Type 'exit' to return to your local shell"
-docker exec -it grocery-list-container /bin/sh -c 'export PS1="[DOCKER] ziv@container:/app \$ " && /bin/sh' 
+docker exec -it grocery-list-container /bin/sh 

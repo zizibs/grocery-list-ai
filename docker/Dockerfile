@@ -2,6 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci --legacy-peer-deps
 
 # Rebuild the source code only when needed
@@ -10,14 +11,22 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
+
+# before npm run build
+ENV NEXT_PUBLIC_SUPABASE_URL=http://localhost
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=dummy-key
+
+# Build the application
 RUN npm run build
 
 # Production image, copy all the files and run next
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV production
-# Set a custom prompt to indicate we're in Docker
-ENV PS1="[DOCKER] ziv@\h:\w \$ "
+
+# Add a non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 # Copy all necessary files from the builder stage
 COPY --from=builder /app/node_modules ./node_modules
@@ -32,6 +41,15 @@ COPY --from=builder /app/certificates ./certificates
 
 # Generate Prisma client
 RUN npx prisma generate
+
+# Set proper permissions
+RUN chown -R nextjs:nodejs /app
+
+# Switch to non-root user
+USER nextjs
+
+# Expose the port the app runs on
+EXPOSE 3000
 
 # Start the Node.js application
 CMD ["node", "server.js"]
