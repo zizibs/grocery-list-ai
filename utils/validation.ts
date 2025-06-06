@@ -2,6 +2,7 @@
 const NAME_REGEX = /^[a-zA-Z0-9\s\-_.,!?()&{}[\]^:;"']+$/;
 const SHARE_CODE_REGEX = /^[A-Z0-9]{6}$/;
 const GENERAL_TEXT_REGEX = /^[a-zA-Z0-9\s\-_.,!?()&{}[\]^:;"']+$/;
+const HAS_LETTER_OR_NUMBER = /[a-zA-Z0-9]/;
 
 // Maximum lengths
 const MAX_NAME_LENGTH = 100;
@@ -33,6 +34,14 @@ export function validateAndSanitizeListName(name: string): ValidationResult {
       error: 'List name can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&(){}[]^:;"\')' 
     };
   }
+
+  // Check if contains at least one letter or number
+  if (!HAS_LETTER_OR_NUMBER.test(trimmed)) {
+    return {
+      isValid: false,
+      error: 'List name must contain at least one letter or number'
+    };
+  }
   
   // Encode any HTML entities
   const sanitized = trimmed
@@ -62,6 +71,14 @@ export function validateAndSanitizeItemName(name: string): ValidationResult {
     return { 
       isValid: false, 
       error: 'Item name can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&(){}[]^:;"\')' 
+    };
+  }
+
+  // Check if contains at least one letter or number
+  if (!HAS_LETTER_OR_NUMBER.test(trimmed)) {
+    return {
+      isValid: false,
+      error: 'Item name must contain at least one letter or number'
     };
   }
   
@@ -108,6 +125,14 @@ export function validateGeneralText(text: string): ValidationResult {
     return { 
       isValid: false, 
       error: 'Text can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&(){}[]^:;"\')' 
+    };
+  }
+
+  // Check if contains at least one letter or number
+  if (!HAS_LETTER_OR_NUMBER.test(trimmed)) {
+    return {
+      isValid: false,
+      error: 'Text must contain at least one letter or number'
     };
   }
   
