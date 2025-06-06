@@ -6,7 +6,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import TabNavigation from './components/TabNavigation';
 import RecipeChat from './components/RecipeChat';
 import { supabase } from '@/lib/supabase';
-import { validateAndSanitizeListName, validateShareCode } from '@/utils/validation';
+import { validateAndSanitizeListName, validateShareCode, validateAndSanitizeItemName } from '@/utils/validation';
 import { List, GroceryItem, Recipe } from '@/types/database';
 
 export default function Home() {
@@ -24,6 +24,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isRecipeChatOpen, setIsRecipeChatOpen] = useState(false);
   const [purchasedItems, setPurchasedItems] = useState<GroceryItem[]>([]);
+  const [listNameError, setListNameError] = useState<string | null>(null);
+  const [itemNameError, setItemNameError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -135,11 +137,19 @@ export default function Home() {
   const createList = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newListName.trim() || !user) return;
+    if (!user) return;
+    
+    // Validate list name
+    const validationResult = validateAndSanitizeListName(newListName);
+    if (!validationResult.isValid) {
+      setListNameError(validationResult.error);
+      return;
+    }
     
     try {
       setIsLoading(true);
       setError('');
+      setListNameError(null);
       
       // Generate a random 6-character share code
       const shareCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -148,7 +158,7 @@ export default function Home() {
         .from('grocery_lists')
         .insert([
           {
-            name: newListName.trim(),
+            name: validationResult.sanitizedValue,
             owner_id: user.id,
             share_code: shareCode
           }
@@ -273,36 +283,27 @@ export default function Home() {
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newItem.trim() || !currentList) return;
+    if (!currentList || !user) return;
+    
+    // Validate item name
+    const validationResult = validateAndSanitizeItemName(newItem);
+    if (!validationResult.isValid) {
+      setItemNameError(validationResult.error);
+      return;
+    }
     
     try {
       setIsLoading(true);
       setError('');
+      setItemNameError(null);
       
-      // Get the session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        setError('You must be signed in to add items');
-        return;
-      }
-      
-      // Check permissions
-      const hasPermission = await checkListPermissions(currentList);
-      if (!hasPermission) {
-        setError('You do not have permission to add items to this list');
-        return;
-      }
-      
-      // Add the item
       const { data, error } = await supabase
         .from('grocery_items')
         .insert([
           {
-            name: newItem.trim(),
-            status: 'toBuy',
             list_id: currentList,
-            created_by: session.user.id // Explicitly set the created_by field
+            name: validationResult.sanitizedValue,
+            added_by: user.id
           }
         ])
         .select()
@@ -310,12 +311,12 @@ export default function Home() {
       
       if (error) throw error;
       
-      // Add the new item to the state if it matches the current tab
-      if (activeTab === 'toBuy') {
-        setItems([...items, data]);
-      }
-      
+      // Add the new item to the state
+      setItems([...items, data]);
       setNewItem('');
+      
+      // Show success message
+      setError(null);
     } catch (error) {
       console.error('Error adding item:', error);
       setError(error instanceof Error ? error.message : 'Failed to add item');
@@ -467,7 +468,10 @@ export default function Home() {
               <input
                 type="text"
                 value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
+                onChange={(e) => {
+                  setNewListName(e.target.value);
+                  setListNameError(null);
+                }}
                 placeholder="New list name..."
                 className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -478,6 +482,12 @@ export default function Home() {
                 Create List
               </button>
             </form>
+            
+            {listNameError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {listNameError}
+              </div>
+            )}
 
             <form onSubmit={joinList} className="flex gap-2">
               <input
@@ -570,7 +580,10 @@ export default function Home() {
                 <input
                   type="text"
                   value={newItem}
-                  onChange={(e) => setNewItem(e.target.value)}
+                  onChange={(e) => {
+                    setNewItem(e.target.value);
+                    setItemNameError(null);
+                  }}
                   placeholder="Add new item..."
                   className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -581,6 +594,12 @@ export default function Home() {
                   Add
                 </button>
               </form>
+              
+              {itemNameError && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                  {itemNameError}
+                </div>
+              )}
 
               {isLoading ? (
                 <div className="text-center">Loading...</div>
