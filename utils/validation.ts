@@ -1,7 +1,7 @@
 // Regular expressions for validation
-const NAME_REGEX = /^[a-zA-Z0-9\s\-_.,!?()&]+$/;
+const NAME_REGEX = /^[a-zA-Z0-9\s\-_.,!?()&{}[\]^:;"']+$/;
 const SHARE_CODE_REGEX = /^[A-Z0-9]{6}$/;
-const GENERAL_TEXT_REGEX = /^[a-zA-Z0-9\s\-_.,!?()&]+$/;
+const GENERAL_TEXT_REGEX = /^[a-zA-Z0-9\s\-_.,!?()&{}[\]^:;"']+$/;
 
 // Maximum lengths
 const MAX_NAME_LENGTH = 100;
@@ -30,7 +30,7 @@ export function validateAndSanitizeListName(name: string): ValidationResult {
   if (!NAME_REGEX.test(trimmed)) {
     return { 
       isValid: false, 
-      error: 'List name can only contain letters, numbers, spaces, and basic punctuation' 
+      error: 'List name can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&(){}[]^:;"\')' 
     };
   }
   
@@ -61,7 +61,7 @@ export function validateAndSanitizeItemName(name: string): ValidationResult {
   if (!NAME_REGEX.test(trimmed)) {
     return { 
       isValid: false, 
-      error: 'Item name can only contain letters, numbers, spaces, and basic punctuation' 
+      error: 'Item name can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&(){}[]^:;"\')' 
     };
   }
   
@@ -107,7 +107,7 @@ export function validateGeneralText(text: string): ValidationResult {
   if (!GENERAL_TEXT_REGEX.test(trimmed)) {
     return { 
       isValid: false, 
-      error: 'Text can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&())' 
+      error: 'Text can only contain letters, numbers, spaces, and basic punctuation (.,!?-_&(){}[]^:;"\')' 
     };
   }
   
