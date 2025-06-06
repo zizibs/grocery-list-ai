@@ -12,6 +12,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 
+# before npm run build
+ENV NEXT_PUBLIC_SUPABASE_URL=http://localhost
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=dummy-key
+
 # Build the application
 RUN npm run build
 
