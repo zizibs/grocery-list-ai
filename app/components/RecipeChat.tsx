@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { GroceryItem } from '@/types/database';
 import { validateMessage } from '@/utils/contentFilter';
+import { validateGeneralText } from '@/utils/validation';
 
 interface Message {
   role: string;
@@ -21,6 +22,7 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const fetchRecipeSuggestion = async (previousMessages: Message[] = []) => {
     try {
@@ -86,12 +88,19 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
     e.preventDefault();
     
     // Validate message content
-    const validationError = validateMessage(inputMessage);
-    if (validationError) {
-      setContentError(validationError);
+    const validationResult = validateGeneralText(inputMessage);
+    if (!validationResult.isValid) {
+      setValidationError(validationResult.error);
       return;
     }
     
+    const contentValidationError = validateMessage(inputMessage);
+    if (contentValidationError) {
+      setContentError(contentValidationError);
+      return;
+    }
+    
+    setValidationError(null);
     setContentError(null);
     
     if (!inputMessage.trim() && messages.length === 0) {
@@ -133,6 +142,13 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
         </div>
       )}
 
+      {validationError && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 my-2 mx-4 rounded">
+          <p className="font-bold">Input Error</p>
+          <p>{validationError}</p>
+        </div>
+      )}
+
       {contentError && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 my-2 mx-4 rounded">
           <p className="font-bold">Content Warning</p>
@@ -170,7 +186,11 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
           <input
             type="text"
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={(e) => {
+              setInputMessage(e.target.value);
+              setValidationError(null);
+              setContentError(null);
+            }}
             placeholder={messages.length === 0 ? "Click 'Get Recipe Suggestions' to start" : "Ask a follow-up question..."}
             className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isLoading || apiError !== null}
