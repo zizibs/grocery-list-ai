@@ -87,7 +87,14 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate message content
+    if (!inputMessage.trim() && messages.length === 0) {
+      // If it's the first message, automatically ask for a recipe
+      const assistantMessage = await fetchRecipeSuggestion();
+      setMessages([assistantMessage]);
+      return;
+    }
+    
+    // Only validate message content for follow-up questions
     const validationResult = validateGeneralText(inputMessage);
     if (!validationResult.isValid) {
       setValidationError(validationResult.error);
@@ -103,22 +110,16 @@ export default function RecipeChat({ purchasedItems, isOpen, onClose }: RecipeCh
     setValidationError(null);
     setContentError(null);
     
-    if (!inputMessage.trim() && messages.length === 0) {
-      // If it's the first message, automatically ask for a recipe
-      const assistantMessage = await fetchRecipeSuggestion();
-      setMessages([assistantMessage]);
-    } else if (inputMessage.trim()) {
-      // For follow-up questions
-      const newMessages = [
-        ...messages,
-        { role: 'user', content: inputMessage },
-      ];
-      setMessages(newMessages);
-      setInputMessage('');
-      
-      const assistantMessage = await fetchRecipeSuggestion(newMessages);
-      setMessages([...newMessages, assistantMessage]);
-    }
+    // For follow-up questions
+    const newMessages = [
+      ...messages,
+      { role: 'user', content: inputMessage },
+    ];
+    setMessages(newMessages);
+    setInputMessage('');
+    
+    const assistantMessage = await fetchRecipeSuggestion(newMessages);
+    setMessages([...newMessages, assistantMessage]);
   };
 
   if (!isOpen) return null;
