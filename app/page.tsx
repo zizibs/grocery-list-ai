@@ -303,7 +303,7 @@ export default function Home() {
           {
             list_id: currentList,
             name: validationResult.sanitizedValue,
-            added_by: user.id
+            created_by: user.id
           }
         ])
         .select()
